@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Journal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --paper:#faf7f2;
+  --paper-2:#f3ece1;
+  --ink:#2b2520;
+  --ink-2:#6b6157;
+  --ink-3:#a09488;
+  --accent:#b4734a;
+  --accent-soft:#e8d5c4;
+  --line:#e2d8cb;
+  --green:#5f8a5f;
+  --red:#c0574a;
+  --radius:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+  background:var(--paper);
+  color:var(--ink);
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+}
+.screen{display:none !important}
+.screen.active{display:block !important}
+#loadingScreen.active{display:flex !important;align-items:center;justify-content:center;min-height:100vh}
+
+.spinner{width:28px;height:28px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.wrap{max-width:680px;margin:0 auto;padding:0 20px 120px}
+
+/* ---------- header ---------- */
+header{
+  position:sticky;top:0;z-index:50;
+  background:rgba(250,247,242,.92);
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line);
+}
+.header-inner{max-width:680px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{font-family:'Fraunces',Georgia,serif;font-size:20px;font-weight:600;letter-spacing:-.2px}
+.header-actions{display:flex;align-items:center;gap:6px}
+.icon-btn{
+  width:36px;height:36px;border-radius:10px;border:1px solid transparent;
+  background:transparent;color:var(--ink-2);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;font-size:17px;
+  transition:background .15s,color .15s;
+}
+.icon-btn:hover{background:var(--paper-2);color:var(--ink)}
+.icon-btn.on{background:var(--accent-soft);color:var(--accent)}
+
+/* ---------- mode switch ---------- */
+.modes{display:flex;gap:4px;background:var(--paper-2);padding:3px;border-radius:10px}
+.modes a{
+  padding:5px 11px;border-radius:8px;font-size:12.5px;font-weight:500;
+  text-decoration:none;color:var(--ink-2);transition:all .15s;white-space:nowrap;
+}
+.modes a.current{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.06)}
+
+/* ---------- today card ---------- */
+.today{
+  background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+  padding:22px;margin-top:22px;box-shadow:0 1px 3px rgba(43,37,32,.04);
+}
+.today-date{font-size:12.5px;color:var(--ink-3);letter-spacing:.3px;text-transform:uppercase;font-weight:500}
+.prompt-box{
+  margin-top:14px;padding:14px 16px;background:var(--paper-2);
+  border-left:3px solid var(--accent);border-radius:0 8px 8px 0;
+}
+.prompt-box p{font-family:'Fraunces',Georgia,serif;font-size:15.5px;line-height:1.55;color:var(--ink)}
+.prompt-label{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--accent);font-weight:600;margin-bottom:6px}
+
+textarea#entry{
+  width:100%;min-height:220px;resize:vertical;margin-top:18px;
+  font-family:'Fraunces',Georgia,serif;font-size:16.5px;line-height:1.75;
+  color:var(--ink);background:transparent;border:none;outline:none;padding:0;
+}
+textarea#entry::placeholder{color:var(--ink-3);font-style:italic}
+
+.moods{display:flex;gap:7px;flex-wrap:wrap;margin-top:18px}
+.mood{
+  font-size:19px;line-height:1;padding:7px 10px;border-radius:9px;cursor:pointer;
+  background:transparent;border:1px solid var(--line);transition:all .13s;
+}
+.mood:hover{background:var(--paper-2)}
+.mood.sel{background:var(--accent-soft);border-color:var(--accent);transform:scale(1.06)}
+
+.today-foot{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-top:18px;padding-top:16px;border-top:1px solid var(--line);
+}
+.save-state{font-size:12.5px;color:var(--ink-3);display:flex;align-items:center;gap:6px}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--ink-3)}
+.dot.saved{background:var(--green)}
+.dot.saving{background:var(--accent);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.3}}
+.words{font-size:12.5px;color:var(--ink-3)}
+
+/* ---------- entries ---------- */
+.section-head{
+  display:flex;align-items:baseline;justify-content:space-between;
+  margin:34px 0 14px;
+}
+.section-head h2{font-family:'Fraunces',Georgia,serif;font-size:17px;font-weight:600}
+.count{font-size:12.5px;color:var(--ink-3)}
+
+.entry{
+  background:#fff;border:1px solid var(--line);border-radius:12px;
+  padding:16px 18px;margin-bottom:9px;cursor:pointer;
+  transition:border-color .15s,transform .1s;
+}
+.entry:hover{border-color:var(--accent-soft);transform:translateY(-1px)}
+.entry-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px}
+.entry-date{font-size:12.5px;color:var(--ink-3);font-weight:500}
+.entry-mood{font-size:15px}
+.entry-prompt{font-size:12px;color:var(--accent);margin-bottom:5px;font-style:italic}
+.entry-text{
+  font-family:'Fraunces',Georgia,serif;font-size:14.5px;line-height:1.6;color:var(--ink-2);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.src{font-size:10.5px;padding:2px 7px;border-radius:5px;background:var(--paper-2);color:var(--ink-3);font-weight:500}
+
+.empty{text-align:center;padding:48px 20px;color:var(--ink-3)}
+.empty-icon{font-size:30px;opacity:.5}
+.empty p{margin-top:10px;font-size:14px;line-height:1.5}
+
+/* ---------- settings sheet ---------- */
+.sheet-bg{
+  position:fixed;inset:0;background:rgba(43,37,32,.35);z-index:100;
+  opacity:0;pointer-events:none;transition:opacity .2s;
+}
+.sheet-bg.open{opacity:1;pointer-events:auto}
+.sheet{
+  position:fixed;left:0;right:0;bottom:0;z-index:101;
+  background:var(--paper);border-radius:20px 20px 0 0;
+  max-width:680px;margin:0 auto;padding:8px 22px 34px;
+  transform:translateY(100%);transition:transform .26s cubic-bezier(.32,.72,0,1);
+  max-height:88vh;overflow-y:auto;
+}
+.sheet.open{transform:translateY(0)}
+.grab{width:36px;height:4px;background:var(--line);border-radius:2px;margin:0 auto 18px}
+.sheet h3{font-family:'Fraunces',Georgia,serif;font-size:19px;margin-bottom:4px}
+.sheet .sub{font-size:13px;color:var(--ink-2);line-height:1.5;margin-bottom:22px}
+
+.row{
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:15px 0;border-bottom:1px solid var(--line);
+}
+.row:last-of-type{border-bottom:none}
+.row-label{font-size:14px;font-weight:500}
+.row-help{font-size:12.5px;color:var(--ink-3);margin-top:3px;line-height:1.45}
+
+.toggle{
+  position:relative;width:46px;height:27px;border-radius:14px;
+  background:var(--line);border:none;cursor:pointer;flex-shrink:0;transition:background .2s;
+}
+.toggle.on{background:var(--green)}
+.toggle span{
+  position:absolute;top:3px;left:3px;width:21px;height:21px;border-radius:50%;
+  background:#fff;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.2);
+}
+.toggle.on span{transform:translateX(19px)}
+
+input[type=text],input[type=time]{
+  font-family:'Inter',sans-serif;font-size:14px;color:var(--ink);
+  background:#fff;border:1px solid var(--line);border-radius:9px;
+  padding:9px 11px;outline:none;transition:border-color .15s;
+}
+input:focus{border-color:var(--accent)}
+input[type=text]{width:150px}
+.times{display:flex;align-items:center;gap:7px}
+
+.btn{
+  padding:11px 18px;border-radius:10px;font-size:14px;font-weight:500;cursor:pointer;
+  border:1px solid var(--line);background:#fff;color:var(--ink);transition:all .15s;
+  font-family:'Inter',sans-serif;
+}
+.btn:hover{background:var(--paper-2)}
+.btn-primary{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.btn-primary:hover{opacity:.88;background:var(--ink)}
+.btn-danger{color:var(--red);border-color:transparent}
+.btn-danger:hover{background:#fbe9e7}
+.btn-full{width:100%;margin-top:20px}
+
+/* ---------- detail ---------- */
+.detail-head{display:flex;align-items:center;gap:12px;margin:22px 0 18px}
+.detail-body{
+  font-family:'Fraunces',Georgia,serif;font-size:16.5px;line-height:1.85;
+  white-space:pre-wrap;word-break:break-word;
+}
+
+/* ---------- toast ---------- */
+.toast{
+  position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(16px);
+  background:var(--ink);color:var(--paper);padding:10px 20px;border-radius:22px;
+  font-size:13px;font-weight:500;opacity:0;pointer-events:none;
+  transition:opacity .2s,transform .2s;z-index:200;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media(max-width:480px){
+  .wrap{padding:0 15px 100px}
+  .header-inner{padding:12px 15px}
+  .brand{font-size:18px}
+  .modes a{padding:5px 9px;font-size:12px}
+  .today{padding:18px}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ LOADING ============ -->
+<div id="loadingScreen" class="screen active">
+  <div class="spinner"></div>
+</div>
+
+<!-- ============ SIGNED OUT ============ -->
+<div id="authScreen" class="screen">
+  <div class="wrap" style="padding-top:90px;text-align:center">
+    <div style="font-size:34px">📔</div>
+    <h1 style="font-family:'Fraunces',Georgia,serif;font-size:25px;margin-top:14px">Journal</h1>
+    <p style="color:var(--ink-2);margin-top:9px;font-size:14px">Sign in to continue.</p>
+    <a href="/" class="btn btn-primary" style="display:inline-block;margin-top:24px;text-decoration:none">Go to sign in</a>
+  </div>
+</div>
+
+<!-- ============ MAIN ============ -->
+<div id="mainScreen" class="screen">
+  <header>
+    <div class="header-inner">
+      <div class="brand">Journal</div>
+      <div class="header-actions">
+        <div class="modes">
+          <a href="/">Personal</a>
+          <a href="/business">Business</a>
+          <a href="/journal" class="current">Journal</a>
+        </div>
+        <button class="icon-btn" id="settingsBtn" title="Settings">⚙</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="today">
+      <div class="today-date" id="todayDate"></div>
+
+      <div class="prompt-box" id="promptBox" style="display:none">
+        <div class="prompt-label">Today's prompt</div>
+        <p id="promptText"></p>
+      </div>
+
+      <textarea id="entry" placeholder="What happened yesterday? Start anywhere…"></textarea>
+
+      <div class="moods" id="moods"></div>
+
+      <div class="today-foot">
+        <div class="save-state"><span class="dot" id="saveDot"></span><span id="saveText">Not saved yet</span></div>
+        <div class="words"><span id="wordCount">0</span> words</div>
+      </div>
+    </div>
+
+    <div class="section-head">
+      <h2>Past entries</h2>
+      <span class="count" id="entryCount"></span>
+    </div>
+    <div id="entryList"></div>
+  </div>
+</div>
+
+<!-- ============ DETAIL ============ -->
+<div id="detailScreen" class="screen">
+  <header>
+    <div class="header-inner">
+      <button class="icon-btn" onclick="showScreen('mainScreen')">←</button>
+      <div class="brand" id="detailDate" style="font-size:16px"></div>
+      <button class="icon-btn btn-danger" id="deleteBtn" title="Delete">🗑</button>
+    </div>
+  </header>
+  <div class="wrap">
+    <div class="detail-head">
+      <span id="detailMood" style="font-size:24px"></span>
+      <span id="detailSrc" class="src"></span>
+    </div>
+    <div id="detailPrompt" class="prompt-box" style="display:none">
+      <div class="prompt-label">Prompt</div>
+      <p id="detailPromptText"></p>
+    </div>
+    <div class="detail-body" id="detailBody" style="margin-top:18px"></div>
+  </div>
+</div>
+
+<!-- ============ SETTINGS SHEET ============ -->
+<div class="sheet-bg" id="sheetBg"></div>
+<div class="sheet" id="sheet">
+  <div class="grab"></div>
+  <h3>Journal settings</h3>
+  <p class="sub">Your entries are private to your login. Nobody else in the household can see them.</p>
+
+  <div class="row">
+    <div>
+      <div class="row-label">Daily prompts</div>
+      <div class="row-help">Get a message at a random time asking about yesterday.</div>
+    </div>
+    <button class="toggle" id="enabledToggle"><span></span></button>
+  </div>
+
+  <div class="row">
+    <div>
+      <div class="row-label">Telegram chat ID</div>
+      <div class="row-help">Message your bot, then paste the ID here.</div>
+    </div>
+    <input type="text" id="chatId" placeholder="e.g. 123456789">
+  </div>
+
+  <div class="row">
+    <div>
+      <div class="row-label">Prompt window</div>
+      <div class="row-help">The message lands at a random time in here.</div>
+    </div>
+    <div class="times">
+      <input type="time" id="winStart">
+      <span style="color:var(--ink-3);font-size:13px">to</span>
+      <input type="time" id="winEnd">
+    </div>
+  </div>
+
+  <button class="btn btn-primary btn-full" id="saveSettings">Save settings</button>
+  <button class="btn btn-full" id="signOutBtn" style="margin-top:9px">Sign out</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===================================================================
+   CONFIG — paste your anon key below (copy it from index.html)
+   =================================================================== */
+const SUPABASE_URL = 'https://blbizkzvjylptwterldw.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJsYml6a3p2anlscHR3dGVybGR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzNTY3MTIsImV4cCI6MjEwMzkzMjcxMn0.f81p9OuTyczjiJmm2ujbHJXL8PBQLr_LPMqswWiiOrU';
+/* =================================================================== */
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const MOODS = ['😊','😌','😐','😔','😤','🤔','😴','🥹'];
+
+let user = null;
+let settings = null;
+let entries = [];
+let todayEntry = null;
+let mood = null;
+let saveTimer = null;
+let detailId = null;
+
+/* ---------- helpers ---------- */
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>{
+    s.classList.remove('active');
+    s.style.display='none';
+  });
+  const el = document.getElementById(id);
+  el.classList.add('active');
+  el.style.display = (id==='loadingScreen') ? 'flex' : 'block';
+  window.scrollTo(0,0);
+}
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2200);
+}
+function localDate(d=new Date()){
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function fmtLong(dateStr){
+  const [y,m,d]=dateStr.split('-').map(Number);
+  return new Date(y,m-1,d).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+}
+function fmtShort(dateStr){
+  const [y,m,d]=dateStr.split('-').map(Number);
+  const dt=new Date(y,m-1,d);
+  const now=new Date();
+  const opts={month:'short',day:'numeric'};
+  if(dt.getFullYear()!==now.getFullYear()) opts.year='numeric';
+  return dt.toLocaleDateString('en-US',opts);
+}
+function words(t){return t.trim()?t.trim().split(/\s+/).length:0}
+
+/* ---------- boot ---------- */
+async function init(){
+  const {data:{session}} = await sb.auth.getSession();
+  if(!session){ showScreen('authScreen'); return; }
+  user = session.user;
+
+  await loadSettings();
+  await loadEntries();
+  renderToday();
+  renderList();
+  showScreen('mainScreen');
+}
+
+async function loadSettings(){
+  const {data} = await sb.from('journal_settings').select('*').eq('user_id',user.id).maybeSingle();
+  if(data){ settings = data; }
+  else {
+    const {data:created} = await sb.from('journal_settings')
+      .insert({user_id:user.id}).select().maybeSingle();
+    settings = created || {enabled:false,window_start:'10:00',window_end:'16:30',telegram_chat_id:null};
+  }
+  syncSettingsUI();
+}
+
+function syncSettingsUI(){
+  document.getElementById('enabledToggle').classList.toggle('on', !!settings.enabled);
+  document.getElementById('chatId').value = settings.telegram_chat_id || '';
+  document.getElementById('winStart').value = (settings.window_start||'10:00').slice(0,5);
+  document.getElementById('winEnd').value = (settings.window_end||'16:30').slice(0,5);
+}
+
+async function loadEntries(){
+  const {data} = await sb.from('journal_entries')
+    .select('*').eq('user_id',user.id).order('entry_date',{ascending:false});
+  entries = data||[];
+  const today = localDate();
+  todayEntry = entries.find(e=>e.entry_date===today) || null;
+}
+
+/* ---------- today ---------- */
+function renderToday(){
+  document.getElementById('todayDate').textContent = fmtLong(localDate());
+  const ta = document.getElementById('entry');
+  ta.value = todayEntry?.content || '';
+  mood = todayEntry?.mood || null;
+  document.getElementById('wordCount').textContent = words(ta.value);
+
+  if(todayEntry?.prompt){
+    document.getElementById('promptBox').style.display='block';
+    document.getElementById('promptText').textContent = todayEntry.prompt;
+  } else {
+    document.getElementById('promptBox').style.display='none';
+  }
+
+  if(todayEntry){ setSaved('Saved'); }
+  renderMoods();
+}
+
+function renderMoods(){
+  document.getElementById('moods').innerHTML = MOODS.map(m=>
+    `<button class="mood${mood===m?' sel':''}" data-m="${m}">${m}</button>`).join('');
+}
+
+function setSaved(text,state){
+  document.getElementById('saveText').textContent=text;
+  const d=document.getElementById('saveDot');
+  d.className='dot'+(state?' '+state:' saved');
+}
+
+async function saveToday(){
+  const content = document.getElementById('entry').value;
+  if(!content.trim() && !mood) return;
+  setSaved('Saving…','saving');
+
+  const payload = {
+    user_id:user.id,
+    entry_date:localDate(),
+    content,
+    mood,
+    updated_at:new Date().toISOString()
+  };
+  if(todayEntry?.prompt) payload.prompt = todayEntry.prompt;
+  if(!todayEntry) payload.source = 'web';
+
+  const {data,error} = await sb.from('journal_entries')
+    .upsert(payload,{onConflict:'user_id,entry_date'})
+    .select().maybeSingle();
+
+  if(error){ setSaved('Save failed','') ; console.error(error); return; }
+  todayEntry = data;
+  const i = entries.findIndex(e=>e.entry_date===data.entry_date);
+  if(i>-1) entries[i]=data; else entries.unshift(data);
+  setSaved('Saved');
+  renderList();
+}
+
+function queueSave(){
+  clearTimeout(saveTimer);
+  setSaved('Unsaved','');
+  saveTimer = setTimeout(saveToday,1200);
+}
+
+/* ---------- list ---------- */
+function renderList(){
+  const today = localDate();
+  const past = entries.filter(e=>e.entry_date!==today);
+  document.getElementById('entryCount').textContent =
+    entries.length ? entries.length+(entries.length===1?' entry':' entries') : '';
+
+  const el = document.getElementById('entryList');
+  if(!past.length){
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📖</div>
+      <p>Nothing here yet.<br>Once you start replying to prompts, your days collect here.</p></div>`;
+    return;
+  }
+  el.innerHTML = past.map(e=>`
+    <div class="entry" data-id="${e.id}">
+      <div class="entry-top">
+        <span class="entry-date">${fmtShort(e.entry_date)}</span>
+        <span style="display:flex;align-items:center;gap:8px">
+          ${e.source==='telegram'?'<span class="src">via Telegram</span>':''}
+          <span class="entry-mood">${e.mood||''}</span>
+        </span>
+      </div>
+      ${e.prompt?`<div class="entry-prompt">${escapeHtml(e.prompt)}</div>`:''}
+      <div class="entry-text">${e.content?escapeHtml(e.content):'<em style="color:var(--ink-3)">Empty</em>'}</div>
+    </div>`).join('');
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ---------- detail ---------- */
+function openDetail(id){
+  const e = entries.find(x=>x.id===id); if(!e) return;
+  detailId = id;
+  document.getElementById('detailDate').textContent = fmtLong(e.entry_date);
+  document.getElementById('detailMood').textContent = e.mood||'';
+  document.getElementById('detailSrc').textContent = e.source==='telegram'?'via Telegram':'written here';
+  if(e.prompt){
+    document.getElementById('detailPrompt').style.display='block';
+    document.getElementById('detailPromptText').textContent=e.prompt;
+  } else document.getElementById('detailPrompt').style.display='none';
+  document.getElementById('detailBody').textContent = e.content||'';
+  showScreen('detailScreen');
+}
+
+/* ---------- settings ---------- */
+function openSheet(){
+  syncSettingsUI();
+  document.getElementById('sheetBg').classList.add('open');
+  document.getElementById('sheet').classList.add('open');
+}
+function closeSheet(){
+  document.getElementById('sheetBg').classList.remove('open');
+  document.getElementById('sheet').classList.remove('open');
+}
+
+/* ---------- events ---------- */
+document.getElementById('entry').addEventListener('input',e=>{
+  document.getElementById('wordCount').textContent = words(e.target.value);
+  queueSave();
+});
+document.getElementById('moods').addEventListener('click',e=>{
+  const b=e.target.closest('.mood'); if(!b) return;
+  mood = (mood===b.dataset.m) ? null : b.dataset.m;
+  renderMoods(); queueSave();
+});
+document.getElementById('entryList').addEventListener('click',e=>{
+  const c=e.target.closest('.entry'); if(c) openDetail(c.dataset.id);
+});
+document.getElementById('settingsBtn').addEventListener('click',openSheet);
+document.getElementById('sheetBg').addEventListener('click',closeSheet);
+
+document.getElementById('enabledToggle').addEventListener('click',e=>{
+  e.currentTarget.classList.toggle('on');
+});
+
+document.getElementById('saveSettings').addEventListener('click',async()=>{
+  const enabled = document.getElementById('enabledToggle').classList.contains('on');
+  const chat = document.getElementById('chatId').value.trim();
+  if(enabled && !chat){ toast('Add your Telegram chat ID first'); return; }
+  const payload = {
+    user_id:user.id,
+    enabled,
+    telegram_chat_id: chat||null,
+    window_start: document.getElementById('winStart').value||'10:00',
+    window_end: document.getElementById('winEnd').value||'16:30'
+  };
+  const {data,error} = await sb.from('journal_settings')
+    .upsert(payload,{onConflict:'user_id'}).select().maybeSingle();
+  if(error){ toast('Could not save'); console.error(error); return; }
+  settings = data;
+  closeSheet();
+  toast(enabled?'Prompts on':'Prompts off');
+});
+
+document.getElementById('deleteBtn').addEventListener('click',async()=>{
+  if(!detailId) return;
+  if(!confirm('Delete this entry? This cannot be undone.')) return;
+  const {error} = await sb.from('journal_entries').delete().eq('id',detailId);
+  if(error){ toast('Could not delete'); return; }
+  entries = entries.filter(e=>e.id!==detailId);
+  if(todayEntry?.id===detailId){ todayEntry=null; renderToday(); }
+  detailId=null; renderList(); showScreen('mainScreen'); toast('Deleted');
+});
+
+document.getElementById('signOutBtn').addEventListener('click',async()=>{
+  await sb.auth.signOut(); window.location.href='/';
+});
+
+window.addEventListener('beforeunload',()=>{ if(saveTimer) saveToday(); });
+
+init();
+</script>
+</body>
+</html>

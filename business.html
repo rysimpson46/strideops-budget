@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Ryan's Business v1788472725</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f5f5f3; --surface: #fff; --surface-2: #f0efed;
+      --border: #e2e1dd; --border-strong: #c9c8c3;
+      --text: #1a1a18; --text-2: #5a5a56; --text-3: #9a9a94;
+      --green: #22a85a; --green-bg: #eaf7f0;
+      --red: #d94040; --red-bg: #fdeaea;
+      --amber: #d08800; --amber-bg: #fef7e6;
+      --purple: #6d28d9; --purple-light: #7c3aed; --purple-bg: #f5f3ff; --purple-border: #ddd6fe;
+      --radius: 10px; --radius-lg: 16px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f0f0d; --surface: #1a1a18; --surface-2: #242420;
+        --border: #2a2a26; --border-strong: #3a3a36;
+        --text: #f0f0ec; --text-2: #9a9a94; --text-3: #5a5a56;
+        --green-bg: #0a2016; --red-bg: #200a0a; --amber-bg: #201600;
+        --purple-bg: #150e2a; --purple-border: #3d2a6e;
+      }
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    .screen { display: none !important; }
+    .screen.active { display: flex !important; }
+    .centered { min-height: 100vh; align-items: center; justify-content: center; padding: 20px; flex-direction: column; }
+
+    /* Auth card */
+    .auth-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 28px 24px; width: 100%; max-width: 360px; }
+    .auth-title { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .auth-sub { font-size: 14px; color: var(--text-2); margin-bottom: 20px; }
+    .field { margin-bottom: 12px; }
+    .field label { display: block; font-size: 11px; font-weight: 700; color: var(--text-2); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .field input { width: 100%; font-family: inherit; font-size: 16px; border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 10px 12px; background: var(--bg); color: var(--text); }
+    .field input:focus { outline: none; border-color: var(--purple); }
+    .pbtn { width: 100%; font-family: inherit; font-size: 15px; font-weight: 700; border-radius: var(--radius); padding: 12px; cursor: pointer; border: none; background: var(--purple); color: #fff; margin-top: 8px; }
+    .pbtn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .screen-err { color: var(--red); font-size: 13px; margin-top: 8px; display: none; text-align: center; }
+    .screen-ok { color: var(--green); font-size: 13px; margin-top: 8px; display: none; text-align: center; }
+    .toggle-row { text-align: center; margin-top: 14px; font-size: 13px; color: var(--text-2); }
+    .toggle-row a { color: var(--purple); cursor: pointer; }
+
+    /* App */
+    .app-wrap { flex-direction: column; min-height: 100vh; }
+    .app-body { max-width: 560px; margin: 0 auto; padding: 0 14px 40px; width: 100%; }
+
+    /* Header */
+    .biz-header { background: var(--purple); padding: 14px 14px 0; position: sticky; top: 0; z-index: 10; }
+    .biz-header-top { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .biz-title { font-size: 15px; font-weight: 700; color: #fff; line-height: 1.2; }
+    .biz-month { font-size: 12px; border: 1px solid rgba(255,255,255,0.3); border-radius: 6px; padding: 4px 8px; background: rgba(255,255,255,0.1); color: #fff; font-family: inherit; cursor: pointer; }
+    .biz-month option { background: var(--purple); color: #fff; }
+    .biz-signout { font-family: inherit; font-size: 12px; font-weight: 500; border-radius: 6px; padding: 5px 10px; cursor: pointer; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: #fff; white-space: nowrap; }
+    .biz-tabs { display: flex; gap: 0; }
+    .biz-tab { flex: 1; background: none; border: none; border-bottom: 2px solid transparent; padding: 10px 4px; font-size: 13px; color: rgba(255,255,255,0.6); cursor: pointer; font-family: inherit; font-weight: 500; text-align: center; }
+    .biz-tab.active { color: #fff; border-bottom-color: #fff; }
+
+    /* Views */
+    .view { display: none; padding-top: 16px; }
+    .view.active { display: block; }
+
+    /* Total deduction card */
+    .deduct-hero { background: var(--surface); border-radius: var(--radius-lg); padding: 18px 20px; margin-bottom: 12px; border: 1px solid var(--border); }
+    .deduct-hero-label { font-size: 13px; color: var(--text-2); margin-bottom: 4px; }
+    .deduct-hero-amount { font-size: 36px; font-weight: 800; letter-spacing: -1px; color: var(--purple); }
+    .deduct-hero-sub { font-size: 12px; color: var(--text-3); margin-top: 4px; }
+    .deduct-breakdown { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+    .deduct-chip { font-size: 12px; background: var(--purple-bg); color: var(--purple); border-radius: 20px; padding: 4px 12px; font-weight: 500; border: 1px solid var(--purple-border); }
+
+    /* Review banner */
+    .review-banner { background: var(--purple); border-radius: var(--radius-lg); padding: 14px 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 12px; cursor: pointer; }
+    .review-banner-icon { font-size: 20px; flex-shrink: 0; }
+    .review-banner-text { flex: 1; }
+    .review-banner-title { font-size: 14px; font-weight: 700; color: #fff; }
+    .review-banner-sub { font-size: 12px; color: rgba(255,255,255,0.75); margin-top: 2px; }
+    .review-banner-arrow { color: rgba(255,255,255,0.7); font-size: 18px; }
+    .review-banner.hidden { display: none; }
+
+    /* Filter bar */
+    .filter-bar { display: flex; gap: 6px; margin-bottom: 12px; overflow-x: auto; padding-bottom: 2px; -webkit-overflow-scrolling: touch; }
+    .filter-bar::-webkit-scrollbar { display: none; }
+    .filter-chip { font-family: inherit; font-size: 12px; font-weight: 500; border: 1px solid var(--border-strong); border-radius: 20px; padding: 5px 12px; cursor: pointer; background: var(--surface); color: var(--text-2); white-space: nowrap; flex-shrink: 0; }
+    .filter-chip.active { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-border); }
+
+    /* Transaction rows */
+    .tx-section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); margin: 16px 0 6px; }
+    .tx-card { background: var(--surface); border-radius: var(--radius-lg); border: 1px solid var(--border); overflow: hidden; margin-bottom: 12px; }
+    .tx-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+    .tx-row:last-child { border-bottom: none; }
+    .tx-status-btn { width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--border-strong); background: var(--surface-2); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; font-size: 14px; transition: all 0.15s; }
+    .tx-status-btn.confirmed { background: var(--green-bg); border-color: var(--green); color: var(--green); }
+    .tx-status-btn.personal { background: var(--surface-2); border-color: var(--border-strong); color: var(--text-3); }
+    .tx-status-btn.transfer { background: var(--surface-2); border-color: var(--border-strong); color: var(--text-3); cursor: default; }
+    .tx-status-btn.review { background: var(--amber-bg); border-color: var(--amber); color: var(--amber); }
+    .tx-middle { flex: 1; min-width: 0; }
+    .tx-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tx-meta { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+    .tx-cat-sel { font-size: 11px; border: 1px solid var(--border); border-radius: 4px; padding: 2px 5px; color: var(--purple); background: var(--purple-bg); font-family: inherit; cursor: pointer; margin-top: 3px; max-width: 150px; }
+    .tx-right { text-align: right; flex-shrink: 0; }
+    .tx-amount { font-size: 14px; font-weight: 600; }
+    .tx-amount.expense { color: var(--text); }
+    .tx-amount.income { color: var(--green); }
+    .tx-del { background: none; border: none; color: var(--text-3); cursor: pointer; font-size: 16px; padding: 2px 4px; margin-top: 2px; display: block; margin-left: auto; }
+
+    /* Empty */
+    .empty { color: var(--text-3); font-size: 13px; text-align: center; padding: 32px 0; }
+
+    /* Tax estimator */
+    .tax-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px 18px; margin-bottom: 12px; }
+    .tax-card-title { font-size: 13px; font-weight: 700; color: var(--text-2); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .tax-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+    .tax-row:last-child { border-bottom: none; }
+    .tax-label { color: var(--text-2); }
+    .tax-value { font-weight: 600; }
+    .tax-value.purple { color: var(--purple); }
+    .tax-value.green { color: var(--green); }
+    .tax-value.red { color: var(--red); }
+    .tax-row.total { padding-top: 12px; margin-top: 4px; border-top: 2px solid var(--border); border-bottom: none; }
+    .tax-row.total .tax-label { font-weight: 700; font-size: 15px; }
+    .tax-row.total .tax-value { font-size: 18px; color: var(--purple); }
+    .quarter-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .quarter-item:last-child { border-bottom: none; }
+    .quarter-label { font-size: 13px; color: var(--text-2); }
+    .quarter-amt { font-size: 13px; font-weight: 600; }
+    .q-badge { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 600; margin-left: 6px; }
+    .q-past { background: var(--red-bg); color: var(--red); }
+    .q-soon { background: var(--amber-bg); color: var(--amber); }
+    .q-ok { background: var(--green-bg); color: var(--green); }
+    .dollar-input-wrap { display: flex; align-items: center; border: 1px solid var(--border-strong); border-radius: var(--radius); overflow: hidden; background: var(--bg); }
+    .dollar-sign { padding: 8px 6px 8px 12px; font-size: 15px; color: var(--text-2); }
+    .dollar-input-wrap input { border: none; background: transparent; font-family: inherit; font-size: 16px; color: var(--text); padding: 8px 10px 8px 2px; width: 100%; }
+
+    /* Switch to personal */
+    .switch-personal { display: block; width: 100%; font-family: inherit; font-size: 14px; font-weight: 600; border-radius: var(--radius-lg); padding: 14px; cursor: pointer; border: 2px solid var(--purple-border); background: var(--purple-bg); color: var(--purple); margin-top: 8px; text-align: center; }
+
+    /* Settings */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: flex-end; justify-content: center; z-index: 100; }
+    .modal-overlay.active { display: flex; }
+    .modal { background: var(--surface); border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: 20px; width: 100%; max-width: 560px; max-height: 85vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .modal-handle { width: 36px; height: 4px; background: var(--border-strong); border-radius: 2px; margin: 0 auto 16px; }
+    .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
+    .biz-settings-section { margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+    .biz-settings-section:last-child { border-bottom: none; }
+    .biz-settings-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); margin-bottom: 10px; }
+    .budget-row { display: grid; grid-template-columns: 1fr 110px auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .budget-label { font-size: 13px; font-weight: 500; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .btn { font-family: inherit; font-size: 13px; font-weight: 500; border-radius: var(--radius); padding: 6px 12px; cursor: pointer; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); white-space: nowrap; }
+    .btn-purple { background: var(--purple); color: #fff; border-color: var(--purple); }
+    .btn-danger { color: var(--red); border-color: transparent; background: none; padding: 3px 6px; font-size: 16px; }
+    .add-cat-row { display: grid; grid-template-columns: 1fr 90px auto; gap: 8px; align-items: center; margin-top: 8px; }
+    input[type=text], input[type=number], input[type=date], input[type=email] { font-family: inherit; font-size: 16px; border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 7px 10px; background: var(--bg); color: var(--text); width: 100%; }
+    input:focus { outline: none; border-color: var(--purple); }
+    .conn-item { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .conn-item:last-child { border-bottom: none; }
+    .conn-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+    .close-btn { width: 100%; font-family: inherit; font-size: 14px; font-weight: 700; border-radius: var(--radius); padding: 13px; cursor: pointer; border: none; background: var(--purple); color: #fff; margin-top: 8px; }
+    .sync-indicator { font-size: 11px; color: rgba(255,255,255,0.6); margin-left: 4px; }
+
+    /* Status popover */
+    .status-popover { position: fixed; z-index: 200; background: var(--surface); border-radius: 14px; box-shadow: 0 8px 32px rgba(0,0,0,0.18); padding: 6px; min-width: 160px; display: none; }
+    .status-popover.active { display: block; }
+    .popover-opt { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 10px; cursor: pointer; font-size: 14px; font-weight: 500; border: none; background: none; font-family: inherit; width: 100%; text-align: left; }
+    .popover-opt:hover { background: var(--surface-2); }
+    .popover-opt.green { color: var(--green); }
+    .popover-opt.red { color: var(--red); }
+    .popover-backdrop { position: fixed; inset: 0; z-index: 199; display: none; }
+    .popover-backdrop.active { display: block; }
+    .err { color: var(--red); font-size: 12px; margin-top: 5px; display: none; }
+
+    /* Add tx panel */
+    .add-tx-panel { background: var(--surface); border: 1px solid var(--purple-border); border-radius: var(--radius-lg); padding: 14px; margin-bottom: 12px; display: none; }
+    .add-tx-title { font-size: 13px; font-weight: 700; color: var(--purple); margin-bottom: 10px; }
+    .add-tx-grid { display: grid; grid-template-columns: 1fr 100px; gap: 8px; margin-bottom: 8px; }
+    .add-tx-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+    /* Summary */
+    .summary-export { width: 100%; font-family: inherit; font-size: 14px; font-weight: 600; border-radius: var(--radius-lg); padding: 13px; cursor: pointer; border: 2px solid var(--purple-border); background: var(--purple-bg); color: var(--purple); margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<div class="screen active centered" id="screenLoading">
+  <div style="color:var(--text-3);font-size:14px;">Loading...</div>
+</div>
+
+<div class="screen centered" id="screenAuth">
+  <div class="auth-card">
+    <div class="auth-title">Ryan's Business</div>
+    <div class="auth-sub" id="authSub">Sign in to your business dashboard</div>
+    <div class="field"><label>Email</label><input type="email" id="authEmail" autocomplete="email"></div>
+    <div class="field"><label>Password</label><input type="password" id="authPassword" autocomplete="current-password"></div>
+    <button class="pbtn" id="authBtn" onclick="handleAuth()">Sign in</button>
+    <div class="screen-err" id="authErr"></div>
+    <div class="screen-ok" id="authOk"></div>
+    <div class="toggle-row"><span id="authToggleText">Don't have an account?</span> <a onclick="toggleAuthMode()"><span id="authToggleLink">Sign up</span></a></div>
+  </div>
+</div>
+
+<div class="screen app-wrap" id="screenApp">
+  <div class="biz-header">
+    <div class="biz-header-top">
+      <div class="biz-title">Ryan's Business <span class="sync-indicator" id="syncIndicator"></span></div>
+      <select class="biz-month" id="yearSel"></select>
+      <button class="biz-signout" onclick="signOut()">Sign out</button>
+    </div>
+    <div class="biz-tabs">
+      <button class="biz-tab active" data-tab="transactions">Transactions</button>
+      <button class="biz-tab" data-tab="tax">Tax Estimator</button>
+      <button class="biz-tab" data-tab="summary">Summary</button>
+    </div>
+  </div>
+
+  <div class="app-body">
+
+    <!-- TRANSACTIONS -->
+    <div id="view-transactions" class="view active">
+      <div class="deduct-hero">
+        <div class="deduct-hero-label">Total confirmed write-offs</div>
+        <div class="deduct-hero-amount" id="heroAmount">$0.00</div>
+        <div class="deduct-hero-sub" id="heroSub">for <span id="heroYearSpan" style="font-weight:700;"></span></div>
+        <div class="deduct-breakdown" id="heroBreakdown"></div>
+      </div>
+
+      <div class="review-banner" id="reviewBanner" onclick="setFilter('review')">
+        <div class="review-banner-icon">💡</div>
+        <div class="review-banner-text">
+          <div class="review-banner-title" id="reviewBannerTitle">Transactions Need Review</div>
+          <div class="review-banner-sub" id="reviewBannerSub"></div>
+        </div>
+        <div class="review-banner-arrow">›</div>
+      </div>
+
+      <div class="filter-bar">
+        <button class="filter-chip active" onclick="setFilter('confirmed',this)">✓ Write-offs</button>
+        <button class="filter-chip" onclick="setFilter('review',this)">? Needs Review</button>
+        <button class="filter-chip" onclick="setFilter('personal',this)">✗ Personal</button>
+        <button class="filter-chip" onclick="setFilter('income',this)">Income</button>
+        <button class="filter-chip" onclick="setFilter('all',this)">All</button>
+      </div>
+
+      <div id="txContent"></div>
+
+      <button class="switch-personal" onclick="window.location.href='/'">← Switch to Personal Budget</button>
+    </div>
+
+    <!-- TAX ESTIMATOR -->
+    <div id="view-tax" class="view">
+      <div class="tax-card">
+        <div class="tax-card-title">This month's picture</div>
+        <div class="tax-row"><span class="tax-label">Gross business income</span><span class="tax-value purple" id="taxIncome">$0.00</span></div>
+        <div class="tax-row"><span class="tax-label">Confirmed deductions</span><span class="tax-value green" id="taxDeductions">-$0.00</span></div>
+        <div class="tax-row"><span class="tax-label">Net profit</span><span class="tax-value" id="taxNetProfit">$0.00</span></div>
+        <div class="tax-row"><span class="tax-label">Self-employment tax (15.3%)</span><span class="tax-value red" id="taxSE">$0.00</span></div>
+        <div class="tax-row total"><span class="tax-label">Projected annual tax</span><span class="tax-value" id="taxTotal">$0.00</span></div>
+      </div>
+
+      <div class="tax-card">
+        <div class="tax-card-title">W-2 Income (optional)</div>
+        <div style="font-size:13px;color:var(--text-2);margin-bottom:10px;">Your Nutrix salary affects your tax bracket</div>
+        <div class="dollar-input-wrap">
+          <span class="dollar-sign">$</span>
+          <input type="number" id="w2Income" placeholder="Annual salary from Nutrix" inputmode="decimal" onchange="renderTax()">
+        </div>
+      </div>
+
+      <div class="tax-card">
+        <div class="tax-card-title">Quarterly payment schedule</div>
+        <div style="font-size:12px;color:var(--text-2);margin-bottom:10px;">IRS expects payments if you owe more than $1,000/year</div>
+        <div id="quarterlySchedule"></div>
+        <div style="margin-top:10px;padding:10px;background:var(--amber-bg);border-radius:var(--radius);font-size:12px;color:var(--amber);">
+          ⚠️ You currently file yearly. Consider making quarterly payments to avoid IRS penalties — typically 0.5% per month on unpaid amounts.
+        </div>
+      </div>
+
+      <div class="tax-card">
+        <div class="tax-card-title">Deductions by IRS category</div>
+        <div id="deductByCat"></div>
+      </div>
+
+      <button class="switch-personal" onclick="window.location.href='/'">← Switch to Personal Budget</button>
+    </div>
+
+    <!-- SUMMARY -->
+    <div id="view-summary" class="view">
+      <div class="tax-card">
+        <div class="tax-card-title">Annual summary — <span id="summaryYear"></span></div>
+        <div class="tax-row"><span class="tax-label">Total income</span><span class="tax-value purple" id="sumIncome">$0.00</span></div>
+        <div class="tax-row"><span class="tax-label">Total deductions</span><span class="tax-value green" id="sumDeductions">-$0.00</span></div>
+        <div class="tax-row"><span class="tax-label">Net profit</span><span class="tax-value" id="sumNetProfit">$0.00</span></div>
+        <div class="tax-row"><span class="tax-label">SE tax (15.3%)</span><span class="tax-value red" id="sumSE">$0.00</span></div>
+        <div class="tax-row total"><span class="tax-label">Est. tax owed</span><span class="tax-value" id="sumTotal">$0.00</span></div>
+      </div>
+      <div class="tax-card">
+        <div class="tax-card-title">Deductions by category</div>
+        <div id="sumByCat"></div>
+      </div>
+      <div class="tax-card" style="background:var(--purple-bg);border-color:var(--purple-border);">
+        <div style="font-size:13px;color:var(--purple);font-weight:600;margin-bottom:6px;">Ready to file?</div>
+        <div style="font-size:13px;color:var(--text-2);margin-bottom:12px;">Take this summary to your tax preparer or use TurboTax Self-Employed. You've saved the cost of Keeper Tax by tracking here.</div>
+        <a href="https://turbotax.intuit.com/personal-taxes/self-employed/" target="_blank" style="display:block;text-align:center;background:var(--purple);color:#fff;border-radius:var(--radius);padding:12px;font-size:14px;font-weight:700;text-decoration:none;">Open TurboTax Self-Employed →</a>
+      </div>
+      <button class="switch-personal" onclick="window.location.href='/'">← Switch to Personal Budget</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Business Settings</div>
+
+    <div class="biz-settings-section">
+      <div class="biz-settings-label">Connected business accounts</div>
+      <div id="connectedAccounts"><div style="color:var(--text-3);font-size:13px;">No accounts connected</div></div>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-purple" id="connectBtn" onclick="connectBank()">Connect business bank</button>
+        <button class="btn" id="syncBtn" onclick="syncTransactions()" style="display:none;">Sync transactions</button>
+      </div>
+      <div class="screen-err" id="plaidErr" style="margin-top:6px;"></div>
+      <div class="screen-ok" id="plaidOk" style="margin-top:6px;"></div>
+    </div>
+
+    <div class="biz-settings-section">
+      <div class="biz-settings-label">Expense categories</div>
+      <div id="budgetRows"></div>
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <input type="text" id="newCatName" placeholder="New category name" style="flex:1;">
+        <button class="btn btn-purple" onclick="addCategory()">Add</button>
+      </div>
+      <div class="err" id="addCatErr" style="margin-top:6px;"></div>
+    </div>
+
+    <div class="biz-settings-section">
+      <div class="biz-settings-label">Add transaction manually</div>
+      <div class="add-tx-grid">
+        <input type="text" id="manual-desc" placeholder="Description">
+        <input type="number" id="manual-amt" placeholder="Amount" inputmode="decimal">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <input type="date" id="manual-date">
+        <select id="manual-cat" style="font-family:inherit;font-size:14px;border:1px solid var(--border-strong);border-radius:var(--radius);padding:7px 9px;background:var(--bg);color:var(--text);"></select>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;justify-content:space-between;">
+        <label style="display:flex;align-items:center;gap:5px;font-size:13px;color:var(--text-2);cursor:pointer;"><input type="checkbox" id="manual-income" style="accent-color:var(--purple);"> Income</label>
+        <button class="btn btn-purple" onclick="addManualTx()">Add transaction</button>
+      </div>
+      <div class="err" id="manualErr"></div>
+    </div>
+
+    <button class="close-btn" onclick="closeSettings()">Done</button>
+  </div>
+</div>
+
+<!-- Status popover -->
+<div class="popover-backdrop" id="popoverBackdrop" onclick="closePopover()"></div>
+<div class="status-popover" id="statusPopover">
+  <button class="popover-opt green" id="popoverConfirm" onclick="popoverAction('confirmed')">✓ Write-off</button>
+  <button class="popover-opt red" id="popoverPersonal" onclick="popoverAction('personal')">✗ Personal</button>
+</div>
+
+<script>
+const SUPABASE_URL='https://blbizkzvjylptwterldw.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJsYml6a3p2anlscHR3dGVybGR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzNTY3MTIsImV4cCI6MjEwMzkzMjcxMn0.f81p9OuTyczjiJmm2ujbHJXL8PBQLr_LPMqswWiiOrU';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
+let currentUser=null,householdId=null,currentMonth='',currentYear='';
+let bizTxs=[],bizCats=[],plaidTokens=[];
+let activeFilter='confirmed',isSignUp=false;
+let merchantMemory={};
+
+const CONFIRMED_MERCHANTS=['netflix','spotify','hulu','disney','adobe','google','microsoft','slack','zoom','dropbox','aws','cloudflare','netlify','supabase','plaid','mailchimp','canva','notion','figma','legalzoom','intuit','squarespace','godaddy','shopify','stripe','twilio','sendgrid','square','paypal','gusto','quickbooks','indeed'];
+const INCOME_PLATFORMS=['stripe','square','paypal','shopify','gusto','direct deposit','payroll','venmo payment received','zelle received'];
+const REVIEW_MERCHANTS=['amazon','walmart','target','costco','uber','lyft','doordash','grubhub','starbucks','shell','chevron','exxon','bp','delta','united','southwest','marriott','hilton','airbnb','facebook','instagram','google ads','meta'];
+
+function mkMonth(d){return d.slice(0,7);}
+function todayStr(){return new Date().toISOString().slice(0,10);}
+function fmtMoney(n){return '$'+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function fmtMonth(ym){const[y,m]=ym.split('-');return new Date(y,m-1,1).toLocaleDateString('en-US',{month:'long',year:'numeric'});}
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function randCode(){return Math.random().toString(36).substring(2,8).toUpperCase();}
+function setSyncIndicator(msg){const el=document.getElementById('syncIndicator');if(el)el.textContent=msg;}
+
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ── Auth ──
+async function init(){
+  try{
+    const{data,error}=await sb.auth.getSession();
+    if(error)throw error;
+    if(data.session){currentUser=data.session.user;await checkHousehold();}
+    else showScreen('screenAuth');
+  }catch(e){
+    document.getElementById('screenLoading').innerHTML='<div style="text-align:center;padding:40px;"><div style="font-size:15px;font-weight:600;margin-bottom:8px;">Connection error</div><div style="font-size:13px;color:#888;margin-bottom:16px;">'+e.message+'</div><button onclick="init()" style="font-family:inherit;font-size:14px;padding:8px 20px;border-radius:8px;border:none;background:#6d28d9;color:#fff;cursor:pointer;">Retry</button></div>';
+  }
+}
+
+function toggleAuthMode(){
+  isSignUp=!isSignUp;
+  document.getElementById('authSub').textContent=isSignUp?'Create your account':'Sign in to your business dashboard';
+  document.getElementById('authBtn').textContent=isSignUp?'Create account':'Sign in';
+  document.getElementById('authToggleText').textContent=isSignUp?'Already have an account?':"Don't have an account?";
+  document.getElementById('authToggleLink').textContent=isSignUp?'Sign in':'Sign up';
+}
+
+async function handleAuth(){
+  const email=document.getElementById('authEmail').value.trim(),password=document.getElementById('authPassword').value;
+  const err=document.getElementById('authErr'),ok=document.getElementById('authOk'),btn=document.getElementById('authBtn');
+  err.style.display='none';ok.style.display='none';
+  if(!email||!password){err.textContent='Enter your email and password.';err.style.display='block';return;}
+  btn.disabled=true;btn.textContent=isSignUp?'Creating...':'Signing in...';
+  const{data,error}=isSignUp?await sb.auth.signUp({email,password}):await sb.auth.signInWithPassword({email,password});
+  if(error){err.textContent=error.message;err.style.display='block';btn.disabled=false;btn.textContent=isSignUp?'Create account':'Sign in';return;}
+  if(isSignUp&&!data.session){ok.textContent='Check your email to confirm, then sign in.';ok.style.display='block';btn.disabled=false;btn.textContent='Sign in';isSignUp=false;return;}
+  currentUser=data.user||data.session?.user;await checkHousehold();
+}
+
+async function signOut(){await sb.auth.signOut();currentUser=null;householdId=null;showScreen('screenAuth');}
+
+async function checkHousehold(){
+  try{
+    const{data,error}=await sb.from('household_members').select('household_id').eq('user_id',currentUser.id).maybeSingle();
+    if(error)throw error;
+    if(data){householdId=data.household_id;await startApp();}
+    else{
+      document.getElementById('screenLoading').innerHTML='<div style="text-align:center;padding:40px;max-width:360px;"><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#1a1a18;">No household found</div><div style="font-size:13px;color:#888;margin-bottom:16px;">Please set up your household on the personal budget first.</div><a href="/" style="display:inline-block;font-family:inherit;font-size:14px;padding:10px 24px;border-radius:8px;background:#6d28d9;color:#fff;text-decoration:none;">Go to personal budget</a></div>';
+    }
+  }catch(e){
+    document.getElementById('screenLoading').innerHTML='<div style="text-align:center;padding:40px;"><div style="font-size:15px;font-weight:600;margin-bottom:8px;">Connection error</div><div style="font-size:13px;color:#888;margin-bottom:16px;">'+e.message+'</div><button onclick="init()" style="font-family:inherit;font-size:14px;padding:8px 20px;border-radius:8px;border:none;background:#6d28d9;color:#fff;cursor:pointer;">Retry</button></div>';
+  }
+}
+
+async function startApp(){
+  currentMonth=mkMonth(todayStr());
+  loadMerchantMemory();
+  buildYearSel();
+  await loadBizCats();
+  await loadBizData();
+  showScreen('screenApp');
+  loadPlaidTokens();
+}
+
+function buildYearSel(){
+  const sel=document.getElementById('yearSel');
+  const now=new Date();
+  currentYear=now.getFullYear().toString();
+  const years=[];
+  for(let y=now.getFullYear();y>=now.getFullYear()-3;y--)years.push(y);
+  sel.innerHTML=years.map(y=>`<option value="${y}" ${y===parseInt(currentYear)?'selected':''}>${y}</option>`).join('');
+  sel.onchange=()=>{currentYear=sel.value;loadBizData();};
+  document.getElementById('summaryYear').textContent=currentYear;
+}
+
+function loadMerchantMemory(){
+  try{merchantMemory=JSON.parse(localStorage.getItem('bizMerchantMemory')||'{}');}catch(e){merchantMemory={};}
+}
+function saveMerchantMemory(){try{localStorage.setItem('bizMerchantMemory',JSON.stringify(merchantMemory));}catch(e){}}
+
+// ── Deduction logic ──
+const TRANSFER_KEYWORDS=['transfer','zelle','venmo','wire','ach','account transfer','direct deposit','mobile deposit','online transfer'];
+
+function isTransfer(tx){
+  const key=(tx.desc||'').toLowerCase();
+  // Don't flag known income platforms as transfers
+  if(INCOME_PLATFORMS.some(x=>key.includes(x))) return false;
+  return TRANSFER_KEYWORDS.some(x=>key.includes(x));
+}
+
+function getStatus(tx){
+  const key=(tx.desc||'').toLowerCase().trim();
+  if(tx.income){
+    if(tx.deduct_status==='confirmed-income')return 'income';
+    if(merchantMemory[key]==='confirmed-income')return 'income';
+    if(tx.cat==='transfer')return 'transfer';
+    if(isTransfer(tx))return 'review';
+    return 'income';
+  }
+  if(merchantMemory[key]==='confirmed')return 'confirmed';
+  if(merchantMemory[key]==='personal')return 'personal';
+  if(tx.deduct_status==='confirmed')return 'confirmed';
+  if(tx.deduct_status==='personal')return 'personal';
+  if(isTransfer(tx)&&tx.cat==='transfer')return 'transfer';
+  if(isTransfer(tx))return 'review'; // suspected transfer expenses go to review
+  if(CONFIRMED_MERCHANTS.some(x=>key.includes(x)))return 'confirmed';
+  if(REVIEW_MERCHANTS.some(x=>key.includes(x)))return 'review';
+  return 'review';
+}
+
+async function setStatus(txId,status){
+  const tx=bizTxs.find(t=>t.id===txId);
+  if(!tx)return;
+  const key=tx.desc.toLowerCase().trim();
+  merchantMemory[key]=status;
+  saveMerchantMemory();
+  tx.deduct_status=status;
+  renderAll();
+  await sb.from('transactions').update({deduct_status:status}).eq('id',txId);
+}
+
+// ── Data ──
+async function loadBizCats(){
+  const{data}=await sb.from('budget_categories').select('*').eq('household_id',householdId).eq('is_business',true).order('sort_order');
+  if(data&&data.length>0){bizCats=data;}
+  else{
+    const defaults=[
+      {key:'advertising',label:'Advertising',invest:false},{key:'contract-labor',label:'Contract Labor',invest:false},
+      {key:'software',label:'Software & Subs',invest:false},{key:'phone-internet',label:'Phone & Internet',invest:false},
+      {key:'home-office',label:'Home Office',invest:false},{key:'travel',label:'Travel',invest:false},
+      {key:'meals',label:'Meals',invest:false},{key:'professional',label:'Professional Svcs',invest:false},
+      {key:'equipment',label:'Equipment',invest:false},{key:'other-biz',label:'Other',invest:false},
+    ];
+    const rows=defaults.map((c,i)=>({household_id:householdId,key:c.key,label:c.label,invest:false,sort_order:i,budget_amount:0,is_business:true}));
+    const{data:ins}=await sb.from('budget_categories').upsert(rows,{onConflict:'household_id,key'}).select();
+    bizCats=ins||rows;
+  }
+  populateCatSelect();
+}
+
+function populateCatSelect(){
+  const sel=document.getElementById('manual-cat');
+  if(sel)sel.innerHTML=bizCats.map(c=>`<option value="${c.key}">${escHtml(c.label)}</option>`).join('');
+}
+
+async function loadBizData(){
+  if(!householdId)return;
+  setSyncIndicator('syncing...');
+  const yr=currentYear||new Date().getFullYear().toString();
+  const{data}=await sb.from('transactions').select('*')
+    .eq('household_id',householdId)
+    .eq('is_business',true)
+    .gte('date',yr+'-01-01')
+    .lte('date',yr+'-12-31')
+    .order('date',{ascending:false});
+  bizTxs=(data||[]).map(r=>({id:r.id,desc:r.description,amount:r.amount,cat:r.category,date:r.date,income:r.income,deduct_status:r.deduct_status}));
+  setSyncIndicator('');
+  renderAll();
+}
+
+function renderAll(){
+  renderHero();
+  renderReviewBanner();
+  renderTxContent();
+  renderTax();
+  renderSummary();
+  renderBudgetRows();
+}
+
+// ── Hero ──
+function renderHero(){
+  const confirmed=bizTxs.filter(t=>!t.income&&getStatus(t)==='confirmed');
+  const total=confirmed.reduce((s,t)=>s+t.amount,0);
+  document.getElementById('heroAmount').textContent=fmtMoney(total);
+  const yearEl=document.getElementById('heroYearSpan');
+  if(yearEl)yearEl.textContent=currentYear||new Date().getFullYear();
+  const byCat={};
+  confirmed.forEach(t=>{const cat=bizCats.find(c=>c.key===t.cat);const label=cat?cat.label:t.cat;byCat[label]=(byCat[label]||0)+t.amount;});
+  const top=Object.entries(byCat).sort((a,b)=>b[1]-a[1]).slice(0,4);
+  document.getElementById('heroBreakdown').innerHTML=top.map(([label,amt])=>`<span class="deduct-chip">${escHtml(label)}: ${fmtMoney(amt)}</span>`).join('');
+}
+
+// ── Review banner ──
+function renderReviewBanner(){
+  const review=bizTxs.filter(t=>getStatus(t)==='review'&&t.cat!=='transfer');
+  const banner=document.getElementById('reviewBanner');
+  if(!review.length){banner.classList.add('hidden');return;}
+  banner.classList.remove('hidden');
+  const deductable=review.filter(t=>!t.income);
+  const potential=deductable.reduce((s,t)=>s+t.amount,0);
+  const transferCount=review.filter(t=>t.cat==='transfer'||isTransfer(t)).length;
+  let sub=`Worth up to ${fmtMoney(potential)} in deductions`;
+  if(transferCount)sub+=` · ${transferCount} suspected transfer${transferCount===1?'':'s'}`;
+  document.getElementById('reviewBannerTitle').textContent=`${review.length} Transaction${review.length===1?'':'s'} Need Review`;
+  document.getElementById('reviewBannerSub').textContent=sub;
+}
+
+// ── Filter ──
+function setFilter(filter, btn){
+  activeFilter=filter;
+  document.querySelectorAll('.filter-chip').forEach(c=>c.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  else{
+    // Find and activate the right chip
+    document.querySelectorAll('.filter-chip').forEach(c=>{
+      if(c.textContent.toLowerCase().includes(filter))c.classList.add('active');
+    });
+  }
+  renderTxContent();
+}
+
+// ── Transactions ──
+function renderTxContent(){
+  let txs=bizTxs;
+  if(activeFilter==='confirmed')txs=bizTxs.filter(t=>!t.income&&getStatus(t)==='confirmed');
+  else if(activeFilter==='review')txs=bizTxs.filter(t=>getStatus(t)==='review');
+  else if(activeFilter==='personal')txs=bizTxs.filter(t=>getStatus(t)==='personal'&&t.cat!=='transfer');
+  else if(activeFilter==='income')txs=bizTxs.filter(t=>t.income&&getStatus(t)==='income');
+
+  const el=document.getElementById('txContent');
+  if(!txs.length){
+    el.innerHTML='<div class="empty">'+(activeFilter==='review'?'Nothing left to review — great job!':'No transactions here yet')+'</div>';
+    return;
+  }
+
+  const catOpts=bizCats.map(c=>`<option value="${c.key}">${escHtml(c.label)}</option>`).join('');
+
+  el.innerHTML=`<div class="tx-card">${txs.map(t=>{
+    const status=getStatus(t);
+    const btnIcon=status==='confirmed'?'✓':status==='personal'?'✗':'?';
+    const btnClass=status==='confirmed'?'confirmed':status==='personal'?'personal':'review';
+    const transferOpt=`<option value="transfer" ${t.cat==='transfer'?'selected':''}>⇄ Transfer (exclude)</option>`;
+    const selOpts=transferOpt+bizCats.map(c=>`<option value="${c.key}" ${c.key===t.cat?'selected':''}>${escHtml(c.label)}</option>`).join('');
+    const cat=bizCats.find(c=>c.key===t.cat);
+
+    const isReviewedIncome=t.income&&status==='review';
+    return `<div class="tx-row">
+      ${!t.income
+        ? (status==='review'
+            ? `<button class="tx-status-btn review" onclick="openPopover('${t.id}',this)" title="Tap to classify">?</button>`
+            : `<button class="tx-status-btn ${btnClass}" onclick="openPopover('${t.id}',this)">${btnIcon}</button>`)
+        : `<div style="width:32px;flex-shrink:0;"></div>`}
+      <div class="tx-middle">
+        <div class="tx-name">${escHtml(t.desc)}</div>
+        <div class="tx-meta">${t.date}${cat?' · '+escHtml(cat.label):''}</div>
+        ${!t.income?`<select class="tx-cat-sel" onchange="updateCat('${t.id}',this.value)">${selOpts}</select>`:''}
+        ${isReviewedIncome?`<div style="display:flex;gap:6px;margin-top:4px;">
+          <button onclick="markAsIncome('${t.id}')" style="font-family:inherit;font-size:11px;padding:3px 10px;border-radius:6px;border:none;background:#eaf7f0;color:#22a85a;cursor:pointer;font-weight:600;">✓ Income</button>
+          <button onclick="markAsTransfer('${t.id}')" style="font-family:inherit;font-size:11px;padding:3px 10px;border-radius:6px;border:none;background:#f0efed;color:#9a9a94;cursor:pointer;font-weight:600;">⇄ Transfer</button>
+        </div>`:''}
+      </div>
+      <div class="tx-right">
+        <div class="tx-amount ${t.income?'income':'expense'}">${t.income?'+':'-'}${fmtMoney(t.amount)}</div>
+        <button class="tx-del" onclick="deleteTx('${t.id}')">×</button>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+async function markAsIncome(txId){
+  const tx=bizTxs.find(t=>t.id===txId);
+  if(!tx)return;
+  const key=(tx.desc||'').toLowerCase().trim();
+  merchantMemory[key]='confirmed-income';
+  saveMerchantMemory();
+  tx.deduct_status='confirmed-income';
+  renderAll();
+  await sb.from('transactions').update({deduct_status:'confirmed-income'}).eq('id',txId);
+}
+
+async function markAsTransfer(txId){
+  const tx=bizTxs.find(t=>t.id===txId);
+  if(!tx)return;
+  tx.cat='transfer';
+  renderAll();
+  await sb.from('transactions').update({category:'transfer'}).eq('id',txId);
+}
+
+async function cycleStatus(txId){
+  const tx=bizTxs.find(t=>t.id===txId);
+  if(!tx)return;
+  const current=getStatus(tx);
+  const next=current==='confirmed'?'personal':current==='personal'?'confirmed':'confirmed';
+  await setStatus(txId,next);
+}
+
+function toggleCatSection(id){
+  const el=document.getElementById(id);
+  const arrow=document.getElementById(id+'-arrow');
+  if(!el)return;
+  const isOpen=el.style.display!=='none';
+  el.style.display=isOpen?'none':'block';
+  if(arrow)arrow.textContent=isOpen?'▼':'▲';
+}
+
+async function updateCat(txId,cat){
+  const tx=bizTxs.find(t=>t.id===txId);
+  if(tx)tx.cat=cat;
+  await sb.from('transactions').update({category:cat}).eq('id',txId);
+  renderAll();
+}
+
+async function deleteTx(txId){
+  bizTxs=bizTxs.filter(t=>t.id!==txId);
+  renderAll();
+  await sb.from('transactions').delete().eq('id',txId);
+}
+
+async function addManualTx(){
+  const desc=document.getElementById('manual-desc').value.trim();
+  const amount=parseFloat(document.getElementById('manual-amt').value);
+  const err=document.getElementById('manualErr');
+  err.style.display='none';
+  if(!desc||!amount||amount<=0){err.textContent='Enter a description and valid amount.';err.style.display='block';return;}
+  const income=document.getElementById('manual-income').checked;
+  const status=income?null:getStatus({desc,income:false,deduct_status:'auto'});
+  const tx={id:Date.now().toString(),desc,amount,cat:document.getElementById('manual-cat').value,date:document.getElementById('manual-date').value||todayStr(),income,deduct_status:status};
+  bizTxs.unshift(tx);
+  document.getElementById('manual-desc').value='';document.getElementById('manual-amt').value='';document.getElementById('manual-income').checked=false;
+  renderAll();
+  await sb.from('transactions').upsert({id:tx.id,household_id:householdId,description:tx.desc,amount:tx.amount,category:tx.cat,date:tx.date,income:tx.income,month:mkMonth(tx.date),is_business:true,deduct_status:status});
+}
+
+// ── Tax ──
+function renderTax(){
+  const confirmed=bizTxs.filter(t=>!t.income&&getStatus(t)==='confirmed');
+  const income=bizTxs.filter(t=>t.income&&getStatus(t)==='income').reduce((s,t)=>s+t.amount,0);
+  const deductions=confirmed.reduce((s,t)=>s+t.amount,0);
+  const netProfit=Math.max(0,income-deductions);
+  const seTax=netProfit*0.153;
+  const w2=parseFloat(document.getElementById('w2Income')?.value||0)||0;
+  const totalIncome=netProfit+w2;
+  let fedTax=0;
+  [[11600,0.10],[47150,0.12],[100525,0.22],[191950,0.24],[243725,0.32],[609350,0.35],[Infinity,0.37]].reduce((prev,[max,rate])=>{
+    if(totalIncome>prev){fedTax+=(Math.min(totalIncome,max)-prev)*rate;}return max;
+  },0);
+  const monthNum=new Date().getMonth()+1;
+  const annualMultiplier=12/monthNum;
+  const projected=(seTax+fedTax)*annualMultiplier;
+
+  document.getElementById('taxIncome').textContent=fmtMoney(income);
+  document.getElementById('taxDeductions').textContent='-'+fmtMoney(deductions);
+  document.getElementById('taxNetProfit').textContent=fmtMoney(netProfit);
+  document.getElementById('taxSE').textContent=fmtMoney(seTax);
+  document.getElementById('taxTotal').textContent=fmtMoney(projected)+'/yr est.';
+
+  const quarterly=projected/4;
+  const now=new Date();
+  const quarters=[
+    {label:'Q1 — due Apr 15',month:3},{label:'Q2 — due Jun 15',month:5},
+    {label:'Q3 — due Sep 15',month:8},{label:'Q4 — due Jan 15',month:1},
+  ];
+  document.getElementById('quarterlySchedule').innerHTML=quarters.map(q=>{
+    const isPast=now.getMonth()+1>q.month;
+    const badge=isPast?'<span class="q-badge q-past">Past due</span>':'<span class="q-badge q-soon">Upcoming</span>';
+    return `<div class="quarter-item"><span class="quarter-label">${q.label}</span><span class="quarter-amt">${fmtMoney(quarterly)}${badge}</span></div>`;
+  }).join('');
+
+  const byCat={};
+  confirmed.forEach(t=>{const cat=bizCats.find(c=>c.key===t.cat);const label=cat?cat.label:t.cat;byCat[label]=(byCat[label]||0)+t.amount;});
+  // Build expandable category sections with transactions
+  const catTxMap={};
+  confirmed.forEach(t=>{
+    const cat=bizCats.find(c=>c.key===t.cat);
+    const label=cat?cat.label:(t.cat||'Other');
+    if(!catTxMap[label])catTxMap[label]={amt:0,txs:[]};
+    catTxMap[label].amt+=t.amount;
+    catTxMap[label].txs.push(t);
+  });
+  const catOpts=bizCats.map(c=>`<option value="${c.key}">${escHtml(c.label)}</option>`).join('');
+  const catHtml=Object.entries(catTxMap).sort((a,b)=>b[1].amt-a[1].amt).map(([label,{amt,txs}],idx)=>`
+    <div style="border-bottom:1px solid var(--border);padding:0;">
+      <div onclick="toggleCatSection('cat-${idx}')" style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;cursor:pointer;">
+        <span style="font-size:14px;font-weight:600;">${escHtml(label)}</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:14px;font-weight:600;color:var(--green);">-${fmtMoney(amt)}</span>
+          <span style="color:var(--text-3);font-size:12px;" id="cat-${idx}-arrow">▼</span>
+        </div>
+      </div>
+      <div id="cat-${idx}" style="display:none;padding-bottom:8px;">
+        ${txs.map(t=>{
+          const selOpts=bizCats.map(c=>`<option value="${c.key}" ${c.key===t.cat?'selected':''}>${escHtml(c.label)}</option>`).join('');
+          return `<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:6px 0;border-top:1px solid var(--border);">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(t.desc)}</div>
+              <div style="font-size:11px;color:var(--text-3);margin-top:2px;">${t.date}</div>
+              <select class="tx-cat-sel" onchange="updateCat('${t.id}',this.value)" style="margin-top:3px;">${selOpts}</select>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;margin-left:8px;">
+              <span style="font-size:13px;font-weight:600;color:var(--red);">-${fmtMoney(t.amount)}</span>
+              <button class="tx-del" onclick="deleteTx('${t.id}')">×</button>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`).join('');
+  document.getElementById('deductByCat').innerHTML=catHtml||'<div style="color:var(--text-3);font-size:13px;padding:10px 0;">Mark transactions as write-offs to see breakdown</div>';
+}
+
+// ── Summary (annual) ──
+async function renderSummary(){
+  // Load all months this year
+  const year=new Date().getFullYear();
+  const{data}=await sb.from('transactions').select('*').eq('household_id',householdId).eq('is_business',true).gte('date',year+'-01-01').lte('date',year+'-12-31');
+  const allTxs=(data||[]).map(r=>({id:r.id,desc:r.description,amount:r.amount,cat:r.category,date:r.date,income:r.income,deduct_status:r.deduct_status}));
+  const confirmed=allTxs.filter(t=>!t.income&&getStatus(t)==='confirmed');
+  const totalIncome=allTxs.filter(t=>t.income).reduce((s,t)=>s+t.amount,0);
+  const totalDeductions=confirmed.reduce((s,t)=>s+t.amount,0);
+  const netProfit=Math.max(0,totalIncome-totalDeductions);
+  const seTax=netProfit*0.153;
+  const w2=parseFloat(document.getElementById('w2Income')?.value||0)||0;
+  let fedTax=0;
+  [[11600,0.10],[47150,0.12],[100525,0.22],[191950,0.24],[243725,0.32],[609350,0.35],[Infinity,0.37]].reduce((prev,[max,rate])=>{
+    if((netProfit+w2)>prev){fedTax+=(Math.min(netProfit+w2,max)-prev)*rate;}return max;
+  },0);
+  const totalTax=seTax+fedTax;
+  document.getElementById('sumIncome').textContent=fmtMoney(totalIncome);
+  document.getElementById('sumDeductions').textContent='-'+fmtMoney(totalDeductions);
+  document.getElementById('sumNetProfit').textContent=fmtMoney(netProfit);
+  document.getElementById('sumSE').textContent=fmtMoney(seTax);
+  document.getElementById('sumTotal').textContent=fmtMoney(totalTax);
+  const byCat={};
+  confirmed.forEach(t=>{const cat=bizCats.find(c=>c.key===t.cat);const label=cat?cat.label:t.cat;byCat[label]=(byCat[label]||0)+t.amount;});
+  document.getElementById('sumByCat').innerHTML=Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([label,amt])=>`<div class="tax-row"><span class="tax-label">${escHtml(label)}</span><span class="tax-value green">-${fmtMoney(amt)}</span></div>`).join('')||'<div style="color:var(--text-3);font-size:13px;padding:10px 0;">No confirmed deductions yet</div>';
+}
+
+// ── Settings ──
+function openSettings(){document.getElementById('settingsModal').classList.add('active');document.body.style.overflow='hidden';renderBudgetRows();}
+function closeSettings(){document.getElementById('settingsModal').classList.remove('active');document.body.style.overflow='';}
+
+function renderBudgetRows(){
+  const el=document.getElementById('budgetRows');if(!el)return;
+  el.innerHTML='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'+bizCats.map((c,i)=>
+    `<div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface-2,#f0efed);border-radius:8px;padding:8px 10px;">
+      <span style="font-size:13px;font-weight:500;color:var(--text-2);">${escHtml(c.label)}</span>
+      <button class="btn btn-danger" onclick="removeCategory(${i})" style="padding:2px 6px;font-size:14px;">×</button>
+    </div>`).join('')+'</div>';
+}
+
+async function addCategory(){
+  const name=document.getElementById('newCatName').value.trim();
+  const err=document.getElementById('addCatErr');err.style.display='none';
+  if(!name){err.textContent='Enter a category name.';err.style.display='block';return;}
+  const key=name.toLowerCase().replace(/[^a-z0-9]/g,'-')+'-biz';
+  const{data:ins}=await sb.from('budget_categories').insert({household_id:householdId,key,label:name,invest:false,sort_order:bizCats.length,budget_amount:0,is_business:true}).select().single();
+  bizCats.push(ins||{key,label:name,invest:false,sort_order:bizCats.length,budget_amount:0,is_business:true});
+  document.getElementById('newCatName').value='';
+  renderBudgetRows();populateCatSelect();
+}
+
+async function removeCategory(idx){
+  const c=bizCats[idx];
+  if(!confirm('Remove "'+c.label+'"?'))return;
+  if(c.id)await sb.from('budget_categories').delete().eq('id',c.id);
+  bizCats.splice(idx,1);
+  renderBudgetRows();populateCatSelect();
+}
+
+async function saveBudgets(){
+  for(let i=0;i<bizCats.length;i++){
+    const c=bizCats[i];
+    if(c.id)await sb.from('budget_categories').update({budget_amount:c.budget_amount||0,sort_order:i}).eq('id',c.id);
+  }
+  closeSettings();
+}
+
+// ── Plaid ──
+async function loadPlaidTokens(){
+  try{
+    const{data}=await sb.from('plaid_items').select('access_token,institution_name').eq('household_id',householdId).eq('is_business',true);
+    plaidTokens=data||[];
+    renderConnected();
+    if(plaidTokens.length>0){const s=document.getElementById('syncBtn');if(s)s.style.display='inline-block';}
+  }catch(e){}
+}
+
+function renderConnected(){
+  const el=document.getElementById('connectedAccounts');if(!el)return;
+  if(!plaidTokens.length){el.innerHTML='<div style="color:var(--text-3);font-size:13px;">No business accounts connected</div>';return;}
+  el.innerHTML=plaidTokens.map(item=>`<div class="conn-item"><div class="conn-dot"></div><span>${escHtml(item.institution_name||'Connected account')}</span></div>`).join('');
+}
+
+async function connectBank(){
+  const errEl=document.getElementById('plaidErr'),okEl=document.getElementById('plaidOk'),btn=document.getElementById('connectBtn');
+  errEl.style.display='none';okEl.style.display='none';btn.textContent='Opening...';btn.disabled=true;
+  try{
+    const res=await fetch('/api/create-link-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:currentUser.id})});
+    const data=await res.json();if(data.error)throw new Error(data.error);
+    const handler=Plaid.create({
+      token:data.link_token,
+      onSuccess:async(public_token,metadata)=>{
+        btn.textContent='Connecting...';
+        const exRes=await fetch('/api/exchange-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({public_token})});
+        const exData=await exRes.json();if(exData.error)throw new Error(exData.error);
+        const institution_name=metadata.institution?metadata.institution.name:'Connected account';
+        await sb.from('plaid_items').insert({household_id:householdId,item_id:exData.item_id,access_token:exData.access_token,institution_name,is_business:true});
+        plaidTokens.push({access_token:exData.access_token,institution_name});
+        renderConnected();
+        document.getElementById('syncBtn').style.display='inline-block';
+        okEl.textContent=institution_name+' connected! Syncing...';okEl.style.display='block';
+        btn.textContent='Connect another';btn.disabled=false;
+        await syncTransactions();
+      },
+      onExit:(err)=>{btn.textContent='Connect business bank';btn.disabled=false;if(err){errEl.textContent=err.display_message||'Cancelled.';errEl.style.display='block';}}
+    });
+    handler.open();
+  }catch(e){errEl.textContent='Error: '+e.message;errEl.style.display='block';btn.textContent='Connect business bank';btn.disabled=false;}
+}
+
+async function syncTransactions(){
+  const syncBtn=document.getElementById('syncBtn'),okEl=document.getElementById('plaidOk'),errEl=document.getElementById('plaidErr');
+  if(syncBtn){syncBtn.textContent='Syncing...';syncBtn.disabled=true;}
+  errEl.style.display='none';
+  try{
+    const yr=currentYear||new Date().getFullYear().toString();
+    const isCurrentYear=yr===new Date().getFullYear().toString();
+    const endMonth=isCurrentYear?new Date().getMonth():11;
+    let allTx=[];
+    for(const item of plaidTokens){
+      for(let m=0;m<=endMonth;m++){
+        const mStr=String(m+1).padStart(2,'0');
+        const start=yr+'-'+mStr+'-01';
+        const lastDay=new Date(parseInt(yr),m+1,0).getDate();
+        const isCurrentMonth=isCurrentYear&&m===new Date().getMonth();
+        const end=isCurrentMonth?new Date().toISOString().slice(0,10):yr+'-'+mStr+'-'+String(lastDay).padStart(2,'0');
+        try{
+          const res=await fetch('/api/get-transactions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_token:item.access_token,start_date:start,end_date:end})});
+          const data=await res.json();
+          if(!data.error)allTx=allTx.concat(data.transactions);
+        }catch(e){}
+      }
+    }
+    if(allTx.length>0){
+      const rows=allTx.map(tx=>{
+        const status=getStatus({desc:tx.desc,income:tx.income,deduct_status:'auto'});
+        return{id:tx.id,household_id:householdId,description:tx.desc,amount:tx.amount,category:tx.cat,date:tx.date,income:tx.income,month:tx.date.slice(0,7),is_business:true,deduct_status:status};
+      });
+      await sb.from('transactions').upsert(rows,{onConflict:'id'});
+    }
+    await loadBizData();
+    okEl.textContent=allTx.length+' transactions synced';okEl.style.display='block';
+  }catch(e){errEl.textContent='Sync error: '+e.message;errEl.style.display='block';}
+  finally{if(syncBtn){syncBtn.textContent='Sync transactions';syncBtn.disabled=false;}}
+}
+
+// ── Tabs & events ──
+document.querySelectorAll('.biz-tab').forEach(btn=>btn.addEventListener('click',()=>{
+  document.querySelectorAll('.biz-tab').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('view-'+btn.dataset.tab).classList.add('active');
+  if(btn.dataset.tab==='tax')renderTax();
+  if(btn.dataset.tab==='summary')renderSummary();
+}));
+
+document.getElementById('authPassword').addEventListener('keydown',e=>{if(e.key==='Enter')handleAuth();});
+document.getElementById('settingsModal').addEventListener('click',e=>{if(e.target===document.getElementById('settingsModal'))closeSettings();});
+
+// Floating settings button
+const settingsFloat=document.createElement('button');
+settingsFloat.textContent='Settings';
+settingsFloat.style.cssText='position:fixed;bottom:20px;right:16px;font-family:inherit;font-size:13px;font-weight:600;border-radius:20px;padding:8px 18px;cursor:pointer;border:none;background:var(--purple);color:#fff;box-shadow:0 4px 12px rgba(109,40,217,0.4);z-index:50;';
+settingsFloat.onclick=openSettings;
+document.body.appendChild(settingsFloat);
+
+// ── Popover ──
+let popoverTxId = null;
+
+function openPopover(txId, btnEl) {
+  popoverTxId = txId;
+  const popover = document.getElementById('statusPopover');
+  const backdrop = document.getElementById('popoverBackdrop');
+  const rect = btnEl.getBoundingClientRect();
+  popover.style.top = (rect.bottom + 8) + 'px';
+  // Position left-aligned but keep on screen
+  let left = rect.left;
+  if (left + 170 > window.innerWidth) left = window.innerWidth - 178;
+  popover.style.left = left + 'px';
+  popover.classList.add('active');
+  backdrop.classList.add('active');
+}
+
+function closePopover() {
+  popoverTxId = null;
+  document.getElementById('statusPopover').classList.remove('active');
+  document.getElementById('popoverBackdrop').classList.remove('active');
+}
+
+async function popoverAction(status) {
+  if (!popoverTxId) return;
+  const id = popoverTxId;
+  closePopover();
+  await setStatus(id, status);
+}
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,69 @@
+{
+  "routes": [
+    {
+      "routePath": "/api/check-item-status",
+      "mountPath": "/api",
+      "method": "OPTIONS",
+      "module": [
+        "api/check-item-status.js:onRequestOptions"
+      ]
+    },
+    {
+      "routePath": "/api/check-item-status",
+      "mountPath": "/api",
+      "method": "POST",
+      "module": [
+        "api/check-item-status.js:onRequestPost"
+      ]
+    },
+    {
+      "routePath": "/api/create-link-token",
+      "mountPath": "/api",
+      "method": "OPTIONS",
+      "module": [
+        "api/create-link-token.js:onRequestOptions"
+      ]
+    },
+    {
+      "routePath": "/api/create-link-token",
+      "mountPath": "/api",
+      "method": "POST",
+      "module": [
+        "api/create-link-token.js:onRequestPost"
+      ]
+    },
+    {
+      "routePath": "/api/exchange-token",
+      "mountPath": "/api",
+      "method": "OPTIONS",
+      "module": [
+        "api/exchange-token.js:onRequestOptions"
+      ]
+    },
+    {
+      "routePath": "/api/exchange-token",
+      "mountPath": "/api",
+      "method": "POST",
+      "module": [
+        "api/exchange-token.js:onRequestPost"
+      ]
+    },
+    {
+      "routePath": "/api/get-transactions",
+      "mountPath": "/api",
+      "method": "OPTIONS",
+      "module": [
+        "api/get-transactions.js:onRequestOptions"
+      ]
+    },
+    {
+      "routePath": "/api/get-transactions",
+      "mountPath": "/api",
+      "method": "POST",
+      "module": [
+        "api/get-transactions.js:onRequestPost"
+      ]
+    }
+  ],
+  "baseURL": "/"
+}
