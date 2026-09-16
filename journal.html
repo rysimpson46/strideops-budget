@@ -573,7 +573,6 @@ document.getElementById('enabledToggle').addEventListener('click',e=>{
 document.getElementById('saveSettings').addEventListener('click',async()=>{
   const enabled = document.getElementById('enabledToggle').classList.contains('on');
   const chat = document.getElementById('chatId').value.trim();
-  if(enabled && !chat){ toast('Add your Telegram chat ID first'); return; }
   const payload = {
     user_id:user.id,
     enabled,
