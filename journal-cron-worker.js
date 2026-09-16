@@ -18,14 +18,14 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === '/trigger') {
-      await runDailyPrompt(env);
+      await runDailyPrompt(env, true); // force=true bypasses time/probability checks
       return new Response('Prompt sent', { status: 200 });
     }
     return new Response('Journal Cron Worker', { status: 200 });
   }
 };
 
-async function runDailyPrompt(env) {
+async function runDailyPrompt(env, force = false) {
   // Current time in Mountain Time
   const now = new Date();
   const mtOffset = isDST(now) ? -6 : -7;
@@ -33,8 +33,8 @@ async function runDailyPrompt(env) {
   const mtMinute = now.getUTCMinutes();
   const mtTime = mtHour + mtMinute / 60;
 
-  // Only run between 10:00am and 4:30pm MT
-  if (mtTime < 10 || mtTime > 16.5) return;
+  // Only run between 10:00am and 4:30pm MT (skip if force=true)
+  if (!force && (mtTime < 10 || mtTime > 16.5)) return;
 
   // Get today's date in MT
   const mtDate = getMTDate(now, mtOffset);
@@ -66,7 +66,7 @@ async function runDailyPrompt(env) {
     // Window is ~6.5 hours = ~6 hourly checks. Roll 1-in-6 each check.
     const windowHours = winEnd - winStart;
     const checksInWindow = Math.max(1, Math.round(windowHours));
-    if (Math.random() > 1 / checksInWindow) continue;
+    if (!force && Math.random() > 1 / checksInWindow) continue;
 
     // Get user email from Supabase auth
     const emailRes = await fetch(
