@@ -8,12 +8,33 @@ const SUPABASE_URL = 'https://blbizkzvjylptwterldw.supabase.co';
 export async function onRequestPost(context) {
   try {
     const { env, request } = context;
-    const body = await request.json();
+    const payload = await request.json();
 
-    // Resend sends inbound email as JSON
-    const fromEmail = (body.from || '').toLowerCase();
-    const replyText = extractReplyText(body.text || body.html || '');
-    const subject   = body.subject || '';
+    // Resend sends metadata only — we need to fetch the email body separately
+    if (payload.type !== 'email.received') {
+      return new Response('OK', { status: 200 });
+    }
+
+    const emailData = payload.data;
+    const emailId   = emailData?.email_id;
+    const fromEmail = (emailData?.from || '').toLowerCase();
+    const subject   = emailData?.subject || '';
+
+    if (!emailId || !fromEmail) {
+      return new Response('Missing data', { status: 200 });
+    }
+
+    // Fetch full email content from Resend API
+    const emailRes = await fetch(`https://api.resend.com/emails/receiving/${emailId}`, {
+      headers: {
+        'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      }
+    });
+
+    const emailContent = await emailRes.json();
+    const rawText = emailContent.text || emailContent.html || '';
+    const replyText = extractReplyText(rawText);
 
     if (!replyText) {
       return new Response('No content', { status: 200 });
@@ -35,18 +56,12 @@ export async function onRequestPost(context) {
 
     const userId = await userRes.text();
     if (!userId || userId === 'null') {
-      console.log('No user found for email:', fromEmail);
       return new Response('Unknown sender', { status: 200 });
     }
 
     const cleanUserId = userId.replace(/"/g, '').trim();
-
-    // Extract the entry date from subject line (format: "Journal Prompt — Sep 15")
-    // Default to yesterday
-    const entryDate = extractDateFromSubject(subject) || getYesterday();
-
-    // Extract prompt from subject
-    const prompt = subject.replace(/^Re:\s*/i, '').replace(/^Journal Prompt[^—]*—\s*/i, '').trim();
+    const entryDate  = extractDateFromSubject(subject) || getYesterday();
+    const prompt     = subject.replace(/^Re:\s*/i, '').replace(/^Journal Prompt[^—]*—\s*/i, '').trim();
 
     // Upsert the journal entry
     const upsertRes = await fetch(
@@ -60,11 +75,11 @@ export async function onRequestPost(context) {
           'Prefer': 'resolution=merge-duplicates',
         },
         body: JSON.stringify({
-          user_id: cleanUserId,
+          user_id:    cleanUserId,
           entry_date: entryDate,
-          content: replyText,
-          prompt: prompt || null,
-          source: 'email',
+          content:    replyText,
+          prompt:     prompt || null,
+          source:     'email',
           updated_at: new Date().toISOString(),
         }),
       }
@@ -85,26 +100,21 @@ export async function onRequestPost(context) {
 
 function extractReplyText(raw) {
   if (!raw) return '';
-
-  // Strip HTML if present
   let text = raw.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
-
-  // Remove quoted reply content (lines starting with >)
   const lines = text.split('\n');
   const cleaned = [];
   for (const line of lines) {
     const trimmed = line.trim();
     if (trimmed.startsWith('>')) break;
     if (trimmed.match(/^On .+ wrote:$/)) break;
-    if (trimmed.includes('journal@strideops.com') && trimmed.includes('wrote:')) break;
+    if (trimmed.includes('igaraachoi.resend.app') && trimmed.includes('wrote:')) break;
+    if (trimmed.includes('strideops.com') && trimmed.includes('wrote:')) break;
     cleaned.push(line);
   }
-
   return cleaned.join('\n').trim();
 }
 
 function extractDateFromSubject(subject) {
-  // Subject format: "Journal Prompt — Sep 15, 2026"
   const match = subject.match(/(\w+ \d+,?\s*\d{4})/);
   if (!match) return null;
   try {
