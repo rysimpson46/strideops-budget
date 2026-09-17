@@ -313,13 +313,6 @@ input[type=text]{width:150px}
     <button class="toggle" id="enabledToggle"><span></span></button>
   </div>
 
-  <div class="row">
-    <div>
-      <div class="row-label">Telegram chat ID</div>
-      <div class="row-help">Message your bot, then paste the ID here.</div>
-    </div>
-    <input type="text" id="chatId" placeholder="e.g. 123456789">
-  </div>
 
   <div class="row">
     <div>
@@ -410,14 +403,13 @@ async function loadSettings(){
   else {
     const {data:created} = await sb.from('journal_settings')
       .insert({user_id:user.id}).select().maybeSingle();
-    settings = created || {enabled:false,window_start:'10:00',window_end:'16:30',telegram_chat_id:null};
+    settings = created || {enabled:false,window_start:'10:00',window_end:'16:30'};
   }
   syncSettingsUI();
 }
 
 function syncSettingsUI(){
   document.getElementById('enabledToggle').classList.toggle('on', !!settings.enabled);
-  document.getElementById('chatId').value = settings.telegram_chat_id || '';
   document.getElementById('winStart').value = (settings.window_start||'10:00').slice(0,5);
   document.getElementById('winEnd').value = (settings.window_end||'16:30').slice(0,5);
 }
@@ -511,7 +503,7 @@ function renderList(){
       <div class="entry-top">
         <span class="entry-date">${fmtShort(e.entry_date)}</span>
         <span style="display:flex;align-items:center;gap:8px">
-          ${e.source==='telegram'?'<span class="src">via Telegram</span>':''}
+          ${e.source==='email'?'<span class="src">via email</span>':''}
           <span class="entry-mood">${e.mood||''}</span>
         </span>
       </div>
@@ -530,7 +522,7 @@ function openDetail(id){
   detailId = id;
   document.getElementById('detailDate').textContent = fmtLong(e.entry_date);
   document.getElementById('detailMood').textContent = e.mood||'';
-  document.getElementById('detailSrc').textContent = e.source==='telegram'?'via Telegram':'written here';
+  document.getElementById('detailSrc').textContent = e.source==='email'?'via email':'written here';
   if(e.prompt){
     document.getElementById('detailPrompt').style.display='block';
     document.getElementById('detailPromptText').textContent=e.prompt;
@@ -572,11 +564,9 @@ document.getElementById('enabledToggle').addEventListener('click',e=>{
 
 document.getElementById('saveSettings').addEventListener('click',async()=>{
   const enabled = document.getElementById('enabledToggle').classList.contains('on');
-  const chat = document.getElementById('chatId').value.trim();
   const payload = {
     user_id:user.id,
     enabled,
-    telegram_chat_id: chat||null,
     window_start: document.getElementById('winStart').value||'10:00',
     window_end: document.getElementById('winEnd').value||'16:30'
   };
