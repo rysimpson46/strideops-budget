@@ -347,7 +347,9 @@
       </div>      <button class="bottom-btn" onclick="openSettings()">Settings</button>
       <button class="bottom-btn" onclick="window.location.href='/business'">Switch to Business Mode</button>
       <button class="bottom-btn" onclick="window.location.href='/journal'">📔 Open Journal</button>
-      <button class="bottom-btn" onclick="window.location.href='/admin'" style="color:var(--text-3);font-size:13px;">⚙ Admin</button>
+      <button class="bottom-btn" onclick="toggleAdminPanel()" style="color:var(--text-3);font-size:13px;">⚙ Admin</button>
+
+      <div id="adminPanel" style="display:none;margin-top:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;"><div style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600;color:var(--text-2);">Household Users</div><div id="adminUserList" style="padding:12px 16px;font-size:13px;color:var(--text-3);">Loading...</div></div>
     </div>
 
     <!-- PERSONAL TRANSACTIONS -->
