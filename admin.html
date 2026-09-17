@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚙️</text></svg>">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif;background:#f5f5f5;color:#1a1a1a;min-height:100vh;-webkit-font-smoothing:antialiased}
+header{background:#fff;border-bottom:1px solid #e5e5e5;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
+header h1{font-size:17px;font-weight:600}
+.back{font-size:13px;color:#666;text-decoration:none;padding:6px 12px;border:1px solid #e5e5e5;border-radius:8px;background:#fff}
+.back:hover{background:#f5f5f5}
+.wrap{max-width:680px;margin:0 auto;padding:24px 20px}
+.section{background:#fff;border:1px solid #e5e5e5;border-radius:12px;overflow:hidden;margin-bottom:20px}
+.section-head{padding:16px 20px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between}
+.section-head h2{font-size:15px;font-weight:600}
+.count{font-size:12px;color:#999;background:#f5f5f5;padding:3px 8px;border-radius:20px}
+.user-row{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #f5f5f5;gap:12px}
+.user-row:last-child{border-bottom:none}
+.user-info{flex:1;min-width:0}
+.user-email{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user-meta{font-size:12px;color:#999;margin-top:3px;display:flex;gap:10px;flex-wrap:wrap}
+.badge{font-size:11px;padding:2px 7px;border-radius:5px;font-weight:500}
+.badge-green{background:#d4edda;color:#155724}
+.badge-gray{background:#f0f0f0;color:#666}
+.badge-blue{background:#d1ecf1;color:#0c5460}
+.remove-btn{padding:7px 14px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid #fca5a5;background:#fef2f2;color:#dc2626;white-space:nowrap;transition:all .15s}
+.remove-btn:hover{background:#fee2e2}
+.remove-btn:disabled{opacity:.5;cursor:not-allowed}
+.empty{text-align:center;padding:40px 20px;color:#999;font-size:14px}
+.spinner{width:24px;height:24px;border:2px solid #e5e5e5;border-top-color:#666;border-radius:50%;animation:spin .7s linear infinite;margin:30px auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(10px);background:#1a1a1a;color:#fff;padding:9px 18px;border-radius:20px;font-size:13px;font-weight:500;opacity:0;transition:all .2s;pointer-events:none;z-index:100}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⚙️ Admin</h1>
+  <a href="/" class="back">← Back</a>
+</header>
+
+<div class="wrap">
+  <div class="section">
+    <div class="section-head">
+      <h2>Users</h2>
+      <span class="count" id="userCount">—</span>
+    </div>
+    <div id="userList"><div class="spinner"></div></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://blbizkzvjylptwterldw.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJsYml6a3p2anlscHR3dGVybGR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzNTY3MTIsImV4cCI6MjEwMzkzMjcxMn0.f81p9OuTyczjiJmm2ujbHJXL8PBQLr_LPMqswWiiOrU';
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function fmtDate(iso) {
+  if (!iso) return 'never';
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+async function load() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { window.location.href = '/'; return; }
+
+  // Fetch users via the admin RPC function
+  const { data: users, error } = await sb.rpc('get_all_users');
+
+  const list = document.getElementById('userList');
+
+  if (error || !users) {
+    list.innerHTML = '<div class="empty">Could not load users. Make sure the get_all_users function exists.</div>';
+    return;
+  }
+
+  document.getElementById('userCount').textContent = users.length + ' user' + (users.length === 1 ? '' : 's');
+
+  if (!users.length) {
+    list.innerHTML = '<div class="empty">No users found.</div>';
+    return;
+  }
+
+  list.innerHTML = users.map(u => `
+    <div class="user-row" id="row-${u.id}">
+      <div class="user-info">
+        <div class="user-email">${u.email}</div>
+        <div class="user-meta">
+          <span>Joined ${fmtDate(u.created_at)}</span>
+          ${u.last_sign_in_at ? `<span>Last seen ${fmtDate(u.last_sign_in_at)}</span>` : ''}
+          ${u.journal_enabled ? '<span class="badge badge-green">Journal on</span>' : '<span class="badge badge-gray">Journal off</span>'}
+          ${u.entry_count > 0 ? `<span class="badge badge-blue">${u.entry_count} journal entries</span>` : ''}
+        </div>
+      </div>
+      <button class="remove-btn" onclick="removeUser('${u.id}', '${u.email}', this)">Remove</button>
+    </div>
+  `).join('');
+}
+
+async function removeUser(userId, email, btn) {
+  if (!confirm(`Remove ${email}? This will delete their account and all their data.`)) return;
+  btn.disabled = true;
+  btn.textContent = 'Removing…';
+
+  const { error } = await sb.rpc('delete_user_by_id', { user_id_input: userId });
+
+  if (error) {
+    toast('Could not remove user');
+    btn.disabled = false;
+    btn.textContent = 'Remove';
+    return;
+  }
+
+  document.getElementById(`row-${userId}`).remove();
+  const remaining = document.querySelectorAll('.user-row').length;
+  document.getElementById('userCount').textContent = remaining + ' user' + (remaining === 1 ? '' : 's');
+  toast(`${email} removed`);
+}
+
+load();
+</script>
+</body>
+</html>
