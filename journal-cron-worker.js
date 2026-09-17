@@ -113,7 +113,7 @@ async function runDailyPrompt(env, force = false) {
       body: JSON.stringify({
         from: 'Journal <journal@strideops.com>',
         to: userEmail,
-        reply_to: 'journal@strideops.com',
+        reply_to: 'journal@reply.strideops.com',
         subject,
         text: `${prompt}\n\nJust reply to this email — your response saves automatically to your journal.\n\n—\nStrideOps Journal`,
       }),
