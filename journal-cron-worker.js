@@ -18,23 +18,29 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === '/trigger') {
-      await runDailyPrompt(env, true); // force=true bypasses time/probability checks
-      return new Response('Prompt sent', { status: 200 });
+      const result = await runDailyPrompt(env, true);
+      return new Response(JSON.stringify(result), { status: 200, headers: {'Content-Type':'application/json'} });
     }
     return new Response('Journal Cron Worker', { status: 200 });
   }
 };
 
 async function runDailyPrompt(env, force = false) {
+  const log = [];
+
   // Current time in Mountain Time
   const now = new Date();
   const mtOffset = isDST(now) ? -6 : -7;
   const mtHour = (now.getUTCHours() + mtOffset + 24) % 24;
   const mtMinute = now.getUTCMinutes();
   const mtTime = mtHour + mtMinute / 60;
+  log.push(`MT time: ${mtHour}:${String(mtMinute).padStart(2,'0')}, force: ${force}`);
 
   // Only run between 10:00am and 4:30pm MT (skip if force=true)
-  if (!force && (mtTime < 10 || mtTime > 16.5)) return;
+  if (!force && (mtTime < 10 || mtTime > 16.5)) {
+    log.push('Outside time window, skipping');
+    return { log };
+  }
 
   // Get today's date in MT
   const mtDate = getMTDate(now, mtOffset);
@@ -51,24 +57,35 @@ async function runDailyPrompt(env, force = false) {
   );
 
   const settings = await settingsRes.json();
-  if (!settings.length) return;
+  log.push(`Settings rows found: ${settings.length}`);
+  if (!settings.length) return { log };
 
   for (const userSettings of settings) {
+    log.push(`Processing user: ${userSettings.user_id.slice(0,8)}... last_sent: ${userSettings.last_sent_date}`);
+
     // Skip if already sent today
-    if (userSettings.last_sent_date === mtDate) continue;
+    if (userSettings.last_sent_date === mtDate) {
+      log.push('Already sent today, skipping');
+      continue;
+    }
 
     // Respect each user's window (stored as HH:MM)
     const winStart = timeToDecimal(userSettings.window_start || '10:00');
     const winEnd   = timeToDecimal(userSettings.window_end   || '16:30');
-    if (mtTime < winStart || mtTime > winEnd) continue;
+    if (!force && (mtTime < winStart || mtTime > winEnd)) {
+      log.push('Outside user window, skipping');
+      continue;
+    }
 
     // 1-in-N chance per hour so it lands at a random time across the window
-    // Window is ~6.5 hours = ~6 hourly checks. Roll 1-in-6 each check.
     const windowHours = winEnd - winStart;
     const checksInWindow = Math.max(1, Math.round(windowHours));
-    if (!force && Math.random() > 1 / checksInWindow) continue;
+    if (!force && Math.random() > 1 / checksInWindow) {
+      log.push('Random check failed, skipping');
+      continue;
+    }
 
-    // Get user email from Supabase auth
+    // Get user email
     const emailRes = await fetch(
       `${SUPABASE_URL}/rest/v1/rpc/get_user_email_by_id`,
       {
@@ -82,7 +99,8 @@ async function runDailyPrompt(env, force = false) {
       }
     );
     const userEmail = (await emailRes.text()).replace(/"/g, '').trim();
-    if (!userEmail) continue;
+    log.push(`User email: ${userEmail}`);
+    if (!userEmail) { log.push('No email found, skipping'); continue; }
 
     // Get recent entries to give Claude context
     const entriesRes = await fetch(
@@ -104,7 +122,7 @@ async function runDailyPrompt(env, force = false) {
     const subject = `Journal Prompt — ${yesterday}`;
 
     // Send email via Resend
-    await fetch('https://api.resend.com/emails', {
+    const sendRes = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -118,6 +136,8 @@ async function runDailyPrompt(env, force = false) {
         text: `${prompt}\n\nJust reply to this email — your response saves automatically to your journal.\n\n—\nStrideOps Journal`,
       }),
     });
+    const sendResult = await sendRes.json();
+    log.push(`Email send result: ${JSON.stringify(sendResult)}`);
 
     // Update last_sent_date
     await fetch(
@@ -133,7 +153,10 @@ async function runDailyPrompt(env, force = false) {
         body: JSON.stringify({ last_sent_date: mtDate }),
       }
     );
+    log.push('last_sent_date updated');
   }
+
+  return { log };
 }
 
 async function generatePrompt(env, recentEntries, todayDate) {
