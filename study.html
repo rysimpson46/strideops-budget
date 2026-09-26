@@ -197,6 +197,51 @@ input[type=range]{width:100px}
   .wb-comparison-row{flex-direction:column}
   .wb-vs{padding:2px 0}
 }
+
+/* ---------- floating playback controls ---------- */
+.floating-controls-wrap{
+  position:fixed;top:110px;right:20px;z-index:60;
+  display:flex;flex-direction:column;gap:12px;max-width:190px;
+}
+.floating-panel{
+  background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;
+  box-shadow:0 4px 16px rgba(43,37,32,.12);display:flex;flex-direction:column;gap:8px;
+}
+.floating-panel select{width:100%}
+.floating-panel-label{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-3);font-weight:700}
+@media(max-width:500px){
+  .floating-controls-wrap{
+    top:auto;left:0;right:0;bottom:0;max-width:none;flex-direction:column-reverse;gap:0;
+  }
+  .floating-panel{border-radius:14px 14px 0 0;box-shadow:0 -4px 16px rgba(43,37,32,.12)}
+  .floating-panel .row{justify-content:center}
+}
+
+/* ---------- quiz mode ---------- */
+.quiz-q{margin-bottom:18px}
+.quiz-q-text{font-weight:600;margin-bottom:8px;line-height:1.5}
+.quiz-options{display:flex;flex-direction:column;gap:6px}
+.quiz-opt{
+  text-align:left;border:1px solid var(--line);background:#fff;border-radius:8px;
+  padding:9px 12px;cursor:pointer;font-family:inherit;font-size:13.5px;color:var(--ink);transition:all .15s;
+}
+.quiz-opt:hover:not(:disabled){background:var(--paper-2)}
+.quiz-opt:disabled{cursor:default}
+.quiz-opt.correct{background:rgba(95,138,95,.15);border-color:var(--green);color:var(--green);font-weight:600}
+.quiz-opt.incorrect{background:rgba(192,87,74,.15);border-color:var(--red);color:var(--red);font-weight:600}
+.quiz-explanation{
+  margin-top:8px;font-size:13px;color:var(--ink-2);background:var(--paper-2);
+  border-radius:8px;padding:10px 12px;line-height:1.5;
+}
+#quizScore{margin-top:6px;margin-bottom:14px;font-weight:700;font-size:15px;display:none}
+
+/* ---------- lesson library ---------- */
+.lib-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.lib-row:last-child{border-bottom:none}
+.lib-check input{width:16px;height:16px}
+.lib-info{flex:1;min-width:0}
+.lib-title{font-size:14px;font-weight:600}
+.lib-meta{font-size:12px;color:var(--ink-3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -217,6 +262,7 @@ input[type=range]{width:100px}
     <div class="header-inner">
       <div class="brand">Study</div>
       <div class="header-actions">
+        <button class="btn btn-icon" id="newLessonBtn">+ New Lesson</button>
         <div class="modes">
           <a href="/">Personal</a>
           <a href="/business">Business</a>
@@ -227,11 +273,54 @@ input[type=range]{width:100px}
     </div>
   </header>
 
+  <div class="floating-controls-wrap" id="floatingControlsWrap">
+    <div class="floating-panel" id="floatingReaderControls" style="display:none">
+      <div class="floating-panel-label">Read to me</div>
+      <select id="voiceSelect"></select>
+      <div class="slider-wrap">
+        Speed
+        <input type="range" id="rateSlider" min="0.7" max="1.4" step="0.05" value="1">
+        <span id="rateLabel">1.0x</span>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary btn-icon" id="playBtn">▶ Play</button>
+        <button class="btn btn-icon" id="pauseBtn" style="display:none">⏸ Pause</button>
+        <button class="btn btn-icon" id="resumeBtn" style="display:none">▶ Resume</button>
+        <button class="btn btn-icon" id="stopBtn">⏹ Stop</button>
+      </div>
+      <div class="row">
+        <button class="btn btn-icon" id="backBtn" title="Previous sentence">⏮</button>
+        <button class="btn btn-icon" id="fwdBtn" title="Next sentence">⏭</button>
+      </div>
+    </div>
+    <div class="floating-panel" id="floatingWhiteboardControls" style="display:none">
+      <div class="floating-panel-label">Whiteboard</div>
+      <select id="wbVoiceSelect"></select>
+      <div class="slider-wrap">
+        Speed
+        <input type="range" id="wbRateSlider" min="0.7" max="1.4" step="0.05" value="1">
+        <span id="wbRateLabel">1.0x</span>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary btn-icon" id="wbPlayBtn">▶ Play</button>
+        <button class="btn btn-icon" id="wbPauseBtn" style="display:none">⏸ Pause</button>
+        <button class="btn btn-icon" id="wbResumeBtn" style="display:none">▶ Resume</button>
+        <button class="btn btn-icon" id="wbStopBtn">⏹ Stop</button>
+      </div>
+      <div class="row">
+        <button class="btn btn-icon" id="wbBackBtn" title="Previous beat">⏮</button>
+        <button class="btn btn-icon" id="wbFwdBtn" title="Next beat">⏭</button>
+      </div>
+      <div class="wb-progress" id="wbProgress"></div>
+    </div>
+  </div>
+
   <div class="wrap">
 
     <div class="card" id="pasteCard">
       <h2>Paste your lesson</h2>
       <div class="hint">Paste the text of a WGU lesson below. You can have it read aloud, or ask for a summary, examples, or a quiz.</div>
+      <input type="text" id="lessonTitleInput" placeholder="Title (optional — used to save this to My Lessons)" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-family:inherit;font-size:13.5px;margin-bottom:10px;background:var(--paper)">
       <textarea id="lessonInput" placeholder="Paste the lesson text here…"></textarea>
       <div class="row" style="margin-top:12px">
         <button class="btn btn-primary" id="loadLessonBtn">Start studying this lesson</button>
@@ -239,23 +328,17 @@ input[type=range]{width:100px}
       </div>
     </div>
 
+    <div class="card" id="libraryCard">
+      <h2>My Lessons</h2>
+      <div id="libraryList" class="hint">Loading…</div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn btn-primary" id="masterQuizBtn" disabled>🧠 Generate master quiz from selected</button>
+      </div>
+    </div>
+
     <div class="card" id="readerCard" style="display:none">
       <h2>Read to me</h2>
       <div class="row">
-        <select id="voiceSelect"></select>
-        <div class="slider-wrap">
-          Speed
-          <input type="range" id="rateSlider" min="0.7" max="1.4" step="0.05" value="1">
-          <span id="rateLabel">1.0x</span>
-        </div>
-      </div>
-      <div class="row">
-        <button class="btn btn-primary btn-icon" id="playBtn">▶ Play</button>
-        <button class="btn btn-icon" id="pauseBtn" style="display:none">⏸ Pause</button>
-        <button class="btn btn-icon" id="resumeBtn" style="display:none">▶ Resume</button>
-        <button class="btn btn-icon" id="stopBtn">⏹ Stop</button>
-        <button class="btn btn-icon" id="backBtn" title="Previous sentence">⏮</button>
-        <button class="btn btn-icon" id="fwdBtn" title="Next sentence">⏭</button>
         <button class="btn btn-icon" id="genWhiteboardBtn">🖍️ Generate whiteboard</button>
       </div>
       <div id="wbGenLoading" class="loading-inline" style="display:none">
@@ -266,23 +349,6 @@ input[type=range]{width:100px}
 
     <div class="card" id="whiteboardCard" style="display:none">
       <h2>Whiteboard</h2>
-      <div class="row">
-        <select id="wbVoiceSelect"></select>
-        <div class="slider-wrap">
-          Speed
-          <input type="range" id="wbRateSlider" min="0.7" max="1.4" step="0.05" value="1">
-          <span id="wbRateLabel">1.0x</span>
-        </div>
-      </div>
-      <div class="row">
-        <button class="btn btn-primary btn-icon" id="wbPlayBtn">▶ Play</button>
-        <button class="btn btn-icon" id="wbPauseBtn" style="display:none">⏸ Pause</button>
-        <button class="btn btn-icon" id="wbResumeBtn" style="display:none">▶ Resume</button>
-        <button class="btn btn-icon" id="wbStopBtn">⏹ Stop</button>
-        <button class="btn btn-icon" id="wbBackBtn" title="Previous beat">⏮</button>
-        <button class="btn btn-icon" id="wbFwdBtn" title="Next beat">⏭</button>
-      </div>
-      <div class="wb-progress" id="wbProgress"></div>
       <div class="wb-panel" id="wbPanel"><div class="wb-card-inner" id="wbCardInner"></div></div>
     </div>
 
@@ -307,8 +373,20 @@ input[type=range]{width:100px}
           <div id="aiOutputText"></div>
         </div>
         <div class="row" style="margin-top:10px">
-          <button class="btn" id="readAiBtn">🔊 Read this aloud</button>
+          <button class="btn" id="readAiBtn">🔊 Listen</button>
         </div>
+      </div>
+    </div>
+
+    <div class="card" id="quizCard" style="display:none">
+      <h2 id="quizTitle">Quiz</h2>
+      <div id="quizLoading" class="loading-inline" style="display:none">
+        <div class="dot-spin"></div> Writing questions…
+      </div>
+      <div id="quizList"></div>
+      <div id="quizScore"></div>
+      <div class="row">
+        <button class="btn btn-primary" id="quizMoreBtn">➕ Generate more questions</button>
       </div>
     </div>
 
@@ -332,6 +410,16 @@ let currentIdx = -1;
 let isPaused = false;
 let speaking = false;
 
+function stopAllSpeech(){
+  window.speechSynthesis.cancel();
+  speaking = false; isPaused = false;
+  setPlayUI('stopped');
+  wbSpeaking = false; wbPaused = false;
+  setWbPlayUI('stopped');
+  aiSpeaking = false;
+  setAiListenUI('stopped');
+}
+
 function showScreen(id){
   document.querySelectorAll('.screen').forEach(s=>{
     s.classList.remove('active');
@@ -347,11 +435,14 @@ function toast(msg){
   setTimeout(()=>t.classList.remove('show'),2400);
 }
 
+let currentUserId = null;
 async function init(){
   const {data:{session}} = await sb.auth.getSession();
   if(!session){ showScreen('authScreen'); return; }
+  currentUserId = session.user.id;
   showScreen('mainScreen');
   populateVoices();
+  loadLibrary();
 }
 init();
 
@@ -397,22 +488,32 @@ if('speechSynthesis' in window){
 document.getElementById('loadLessonBtn').addEventListener('click', ()=>{
   const text = document.getElementById('lessonInput').value.trim();
   if(!text){ toast('Paste a lesson first'); return; }
+  const title = document.getElementById('lessonTitleInput').value.trim();
   loadLesson(text);
+  saveLesson(text, title);
 });
 document.getElementById('clearLessonBtn').addEventListener('click', ()=>{
   document.getElementById('lessonInput').value = '';
+  document.getElementById('lessonTitleInput').value = '';
 });
+document.getElementById('newLessonBtn').addEventListener('click', resetToNewLesson);
 
 let currentLesson = '';
 function loadLesson(text){
   currentLesson = text;
-  stopReading();
-  wbStopReading();
+  stopAllSpeech();
   beats = [];
   currentBeatIdx = -1;
+  quizQuestions = [];
+  quizAnswered = [];
   document.getElementById('whiteboardCard').style.display = 'none';
   document.getElementById('wbCardInner').innerHTML = '';
   document.getElementById('wbProgress').innerHTML = '';
+  document.getElementById('floatingWhiteboardControls').style.display = 'none';
+  document.getElementById('quizCard').style.display = 'none';
+  document.getElementById('quizList').innerHTML = '';
+  document.getElementById('quizScore').style.display = 'none';
+  document.getElementById('aiOutputWrap').style.display = 'none';
   const view = document.getElementById('lessonView');
   view.innerHTML = '';
   sentences = splitSentences(text).map(s => {
@@ -424,7 +525,33 @@ function loadLesson(text){
   });
   document.getElementById('readerCard').style.display = 'block';
   document.getElementById('aiCard').style.display = 'block';
+  document.getElementById('floatingReaderControls').style.display = 'flex';
   document.getElementById('readerCard').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function resetToNewLesson(){
+  stopAllSpeech();
+  currentLesson = '';
+  sentences = [];
+  beats = [];
+  currentBeatIdx = -1;
+  quizQuestions = [];
+  quizAnswered = [];
+  document.getElementById('lessonInput').value = '';
+  document.getElementById('lessonTitleInput').value = '';
+  document.getElementById('lessonView').innerHTML = '';
+  document.getElementById('readerCard').style.display = 'none';
+  document.getElementById('whiteboardCard').style.display = 'none';
+  document.getElementById('aiCard').style.display = 'none';
+  document.getElementById('quizCard').style.display = 'none';
+  document.getElementById('floatingReaderControls').style.display = 'none';
+  document.getElementById('floatingWhiteboardControls').style.display = 'none';
+  document.getElementById('wbCardInner').innerHTML = '';
+  document.getElementById('wbProgress').innerHTML = '';
+  document.getElementById('aiOutputWrap').style.display = 'none';
+  document.getElementById('quizList').innerHTML = '';
+  document.getElementById('quizScore').style.display = 'none';
+  document.getElementById('pasteCard').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 function splitSentences(text){
@@ -455,12 +582,10 @@ function speakFrom(idx){
 }
 function highlightCurrent(){
   sentences.forEach((s,i)=> s.el.classList.toggle('current', i===currentIdx));
-  if(sentences[currentIdx]) sentences[currentIdx].el.scrollIntoView({behavior:'smooth', block:'center'});
 }
 function startReading(){
   if(!sentences.length) return;
-  wbStopReading();
-  window.speechSynthesis.cancel();
+  stopAllSpeech();
   speaking = true; isPaused = false;
   setPlayUI('playing');
   speakFrom(currentIdx >= 0 ? currentIdx : 0);
@@ -505,6 +630,8 @@ document.getElementById('rateSlider').addEventListener('input', (e)=>{
 /* ---------- AI panel ---------- */
 const modeLabels = { summarize:'Summary', examples:'Examples', quiz:'Quiz', simpler:'Simpler explanation', ask:'Answer' };
 let lastAiText = '';
+let aiSpeaking = false;
+let aiUtterance = null;
 
 async function runAI(mode, question){
   if(!currentLesson){ toast('Load a lesson first'); return; }
@@ -518,6 +645,8 @@ async function runAI(mode, question){
     });
     const data = await res.json();
     if(!res.ok || data.error){ throw new Error(data.error || 'Something went wrong'); }
+    stopAllSpeech();
+    aiUtterance = null;
     lastAiText = data.text;
     document.getElementById('aiOutputLabel').textContent = modeLabels[mode] || 'Answer';
     document.getElementById('aiOutputText').textContent = data.text;
@@ -530,7 +659,10 @@ async function runAI(mode, question){
 }
 
 document.querySelectorAll('#aiCard [data-mode]').forEach(btn=>{
-  btn.addEventListener('click', ()=> runAI(btn.dataset.mode));
+  btn.addEventListener('click', ()=>{
+    if(btn.dataset.mode === 'quiz'){ runQuiz(currentLesson, {title:'Quiz'}); }
+    else runAI(btn.dataset.mode);
+  });
 });
 document.getElementById('askBtn').addEventListener('click', ()=>{
   const q = document.getElementById('askInput').value.trim();
@@ -540,14 +672,34 @@ document.getElementById('askBtn').addEventListener('click', ()=>{
 document.getElementById('askInput').addEventListener('keydown', (e)=>{
   if(e.key==='Enter') document.getElementById('askBtn').click();
 });
+function setAiListenUI(state){
+  const btn = document.getElementById('readAiBtn');
+  if(!btn) return;
+  btn.textContent = state === 'playing' ? '⏸ Pause' : (state === 'paused' ? '▶ Resume listening' : '🔊 Listen');
+}
 document.getElementById('readAiBtn').addEventListener('click', ()=>{
   if(!lastAiText) return;
-  window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(lastAiText);
+  if(aiSpeaking){
+    window.speechSynthesis.pause();
+    aiSpeaking = false;
+    setAiListenUI('paused');
+    return;
+  }
+  if(window.speechSynthesis.paused && aiUtterance){
+    window.speechSynthesis.resume();
+    aiSpeaking = true;
+    setAiListenUI('playing');
+    return;
+  }
+  stopAllSpeech();
+  aiUtterance = new SpeechSynthesisUtterance(lastAiText);
   const v = getSelectedVoice();
-  if(v) u.voice = v;
-  u.rate = parseFloat(document.getElementById('rateSlider').value);
-  window.speechSynthesis.speak(u);
+  if(v) aiUtterance.voice = v;
+  aiUtterance.rate = parseFloat(document.getElementById('rateSlider').value);
+  aiUtterance.onend = () => { aiSpeaking = false; setAiListenUI('stopped'); };
+  aiSpeaking = true;
+  setAiListenUI('playing');
+  window.speechSynthesis.speak(aiUtterance);
 });
 
 /* ---------- whiteboard mode ---------- */
@@ -653,8 +805,7 @@ function wbSpeakFrom(idx){
 }
 function wbStartReading(){
   if(!beats.length) return;
-  stopReading();
-  window.speechSynthesis.cancel();
+  stopAllSpeech();
   wbSpeaking = true; wbPaused = false;
   setWbPlayUI('playing');
   wbSpeakFrom(currentBeatIdx >= 0 ? currentBeatIdx : 0);
@@ -713,6 +864,7 @@ async function generateWhiteboard(){
     renderProgress();
     renderBeat(0);
     document.getElementById('whiteboardCard').style.display = 'block';
+    document.getElementById('floatingWhiteboardControls').style.display = 'flex';
     document.getElementById('whiteboardCard').scrollIntoView({behavior:'smooth', block:'start'});
   }catch(e){
     toast(e.message || 'Whiteboard generation failed');
@@ -722,6 +874,165 @@ async function generateWhiteboard(){
   }
 }
 document.getElementById('genWhiteboardBtn').addEventListener('click', generateWhiteboard);
+
+/* ---------- interactive quiz ---------- */
+let quizQuestions = [];
+let quizAnswered = [];
+let quizLessonSource = '';
+
+function quizOptionLetter(i){ return String.fromCharCode(65 + i); }
+
+function renderQuestionCard(q, idx){
+  const div = document.createElement('div');
+  div.className = 'quiz-q';
+  div.dataset.qidx = idx;
+  const optsHtml = (q.options || []).map((opt,i)=>
+    `<button class="quiz-opt" data-opt="${i}" type="button">${quizOptionLetter(i)}. ${escapeHtml(opt)}</button>`
+  ).join('');
+  div.innerHTML = `
+    <div class="quiz-q-text">${idx+1}. ${escapeHtml(q.question)}</div>
+    <div class="quiz-options">${optsHtml}</div>
+    <div class="quiz-explanation" style="display:none"></div>
+  `;
+  return div;
+}
+
+document.getElementById('quizList').addEventListener('click', (e)=>{
+  const btn = e.target.closest('.quiz-opt');
+  if(!btn) return;
+  const qDiv = btn.closest('.quiz-q');
+  const qIdx = parseInt(qDiv.dataset.qidx, 10);
+  if(quizAnswered[qIdx] !== undefined) return;
+  const chosen = parseInt(btn.dataset.opt, 10);
+  const q = quizQuestions[qIdx];
+  quizAnswered[qIdx] = chosen;
+  qDiv.querySelectorAll('.quiz-opt').forEach((b,i)=>{
+    b.disabled = true;
+    if(i === q.correctIndex) b.classList.add('correct');
+    else if(i === chosen) b.classList.add('incorrect');
+  });
+  const expl = qDiv.querySelector('.quiz-explanation');
+  expl.textContent = q.explanation || '';
+  expl.style.display = 'block';
+  updateQuizScore();
+});
+
+function updateQuizScore(){
+  const scoreEl = document.getElementById('quizScore');
+  const total = quizQuestions.length;
+  const answeredCount = quizAnswered.filter(a => a !== undefined).length;
+  if(!total || answeredCount < total){ scoreEl.style.display = 'none'; return; }
+  const correctCount = quizQuestions.filter((q,i)=> quizAnswered[i] === q.correctIndex).length;
+  scoreEl.textContent = `Score: ${correctCount}/${total}`;
+  scoreEl.style.display = 'block';
+}
+
+async function runQuiz(lessonText, opts){
+  opts = opts || {};
+  const append = !!opts.append;
+  const title = opts.title || 'Quiz';
+  if(!lessonText){ toast('Load a lesson first'); return; }
+  const moreBtn = document.getElementById('quizMoreBtn');
+  if(append) moreBtn.disabled = true;
+  document.getElementById('quizLoading').style.display = 'flex';
+  try{
+    const body = { lesson: lessonText, mode: 'quiz' };
+    if(append) body.excludeQuestions = quizQuestions.map(q => q.question);
+    const res = await fetch('/api/study-ai', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if(!res.ok || data.error){ throw new Error(data.error || 'Something went wrong'); }
+    if(!Array.isArray(data.questions) || !data.questions.length){ throw new Error('No questions came back'); }
+    if(!append){
+      quizQuestions = [];
+      quizAnswered = [];
+      document.getElementById('quizList').innerHTML = '';
+      quizLessonSource = lessonText;
+    }
+    document.getElementById('quizTitle').textContent = title;
+    const startIdx = quizQuestions.length;
+    data.questions.forEach((q,i)=>{
+      quizQuestions.push(q);
+      document.getElementById('quizList').appendChild(renderQuestionCard(q, startIdx + i));
+    });
+    document.getElementById('quizCard').style.display = 'block';
+    document.getElementById('quizScore').style.display = 'none';
+    document.getElementById('quizCard').scrollIntoView({behavior:'smooth', block:'start'});
+  }catch(e){
+    toast(e.message || 'Quiz generation failed');
+  }finally{
+    document.getElementById('quizLoading').style.display = 'none';
+    moreBtn.disabled = false;
+  }
+}
+document.getElementById('quizMoreBtn').addEventListener('click', ()=> runQuiz(quizLessonSource, {append:true}));
+
+/* ---------- lesson library ---------- */
+let savedLessons = [];
+
+async function loadLibrary(){
+  const list = document.getElementById('libraryList');
+  list.textContent = 'Loading…';
+  const {data, error} = await sb.from('lessons').select('id,title,content,created_at').order('created_at', {ascending:false});
+  if(error){ list.textContent = 'Could not load your saved lessons.'; return; }
+  savedLessons = data || [];
+  if(!savedLessons.length){
+    list.innerHTML = '<div class="hint" style="margin:0">No saved lessons yet — start studying one above to save it here.</div>';
+    updateMasterQuizBtn();
+    return;
+  }
+  list.innerHTML = '';
+  savedLessons.forEach(l=>{
+    const row = document.createElement('div');
+    row.className = 'lib-row';
+    const content = l.content || '';
+    const preview = content.slice(0, 90).replace(/\s+/g,' ').trim();
+    const date = l.created_at ? new Date(l.created_at).toLocaleDateString() : '';
+    row.innerHTML = `
+      <label class="lib-check"><input type="checkbox" data-id="${l.id}"></label>
+      <div class="lib-info">
+        <div class="lib-title">${escapeHtml(l.title || 'Untitled lesson')}</div>
+        <div class="lib-meta">${escapeHtml(date)} · ${escapeHtml(preview)}${content.length > 90 ? '…' : ''}</div>
+      </div>
+      <button class="btn" data-open="${l.id}" type="button">Open</button>
+    `;
+    list.appendChild(row);
+  });
+  updateMasterQuizBtn();
+}
+
+document.getElementById('libraryList').addEventListener('change', (e)=>{
+  if(e.target.matches('input[type=checkbox]')) updateMasterQuizBtn();
+});
+document.getElementById('libraryList').addEventListener('click', (e)=>{
+  const openBtn = e.target.closest('[data-open]');
+  if(!openBtn) return;
+  const lesson = savedLessons.find(l => String(l.id) === openBtn.dataset.open);
+  if(lesson) loadLesson(lesson.content);
+});
+function updateMasterQuizBtn(){
+  const checked = document.querySelectorAll('#libraryList input[type=checkbox]:checked');
+  document.getElementById('masterQuizBtn').disabled = checked.length === 0;
+}
+document.getElementById('masterQuizBtn').addEventListener('click', ()=>{
+  const checked = [...document.querySelectorAll('#libraryList input[type=checkbox]:checked')];
+  const ids = checked.map(c => c.dataset.id);
+  const chosen = savedLessons.filter(l => ids.includes(String(l.id)));
+  if(!chosen.length) return;
+  const combined = chosen.map(l => `--- Lesson: ${l.title || 'Untitled'} ---\n${l.content}`).join('\n\n');
+  runQuiz(combined, {title:'Master Quiz'});
+});
+
+async function saveLesson(text, titleOverride){
+  if(!currentUserId) return;
+  const title = titleOverride || text.split(/\s+/).slice(0,6).join(' ').trim() || 'Untitled lesson';
+  const {error} = await sb.from('lessons').insert({ user_id: currentUserId, title, content: text });
+  if(error){ console.error(error); toast('Could not save this lesson to your library'); return; }
+  loadLibrary();
+}
 </script>
 </body>
 </html>
