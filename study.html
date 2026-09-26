@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Study</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎧</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --paper:#faf7f2;
+  --paper-2:#f3ece1;
+  --ink:#2b2520;
+  --ink-2:#6b6157;
+  --ink-3:#a09488;
+  --accent:#3f6b7a;
+  --accent-soft:#d7e6ea;
+  --line:#e2d8cb;
+  --green:#5f8a5f;
+  --red:#c0574a;
+  --radius:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+  background:var(--paper);
+  color:var(--ink);
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+}
+.screen{display:none !important}
+.screen.active{display:block !important}
+#loadingScreen.active{display:flex !important;align-items:center;justify-content:center;min-height:100vh}
+.spinner{width:28px;height:28px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.wrap{max-width:680px;margin:0 auto;padding:0 20px 140px}
+
+header{
+  position:sticky;top:0;z-index:50;
+  background:rgba(250,247,242,.92);
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line);
+}
+.header-inner{max-width:680px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{font-family:'Fraunces',Georgia,serif;font-size:20px;font-weight:600;letter-spacing:-.2px}
+.header-actions{display:flex;align-items:center;gap:6px}
+
+.modes{display:flex;gap:4px;background:var(--paper-2);padding:3px;border-radius:10px}
+.modes a{
+  padding:5px 11px;border-radius:8px;font-size:12.5px;font-weight:500;
+  text-decoration:none;color:var(--ink-2);transition:all .15s;white-space:nowrap;
+}
+.modes a.current{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.06)}
+
+.card{
+  background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+  padding:20px;margin-top:20px;box-shadow:0 1px 3px rgba(43,37,32,.04);
+}
+.card h2{font-family:'Fraunces',Georgia,serif;font-size:17px;font-weight:600;margin-bottom:12px}
+.hint{font-size:12.5px;color:var(--ink-3);margin-top:-6px;margin-bottom:12px;line-height:1.5}
+
+textarea{
+  width:100%;min-height:180px;border:1px solid var(--line);border-radius:10px;
+  padding:14px;font-family:'Inter',sans-serif;font-size:14.5px;line-height:1.6;
+  color:var(--ink);resize:vertical;background:var(--paper);
+}
+textarea:focus{outline:none;border-color:var(--accent)}
+
+.lesson-view{
+  font-size:15px;line-height:1.8;white-space:pre-wrap;
+}
+.lesson-view .sent{transition:background .15s}
+.lesson-view .sent.current{background:var(--accent-soft);border-radius:3px}
+
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.row + .row{margin-top:10px}
+
+select{
+  border:1px solid var(--line);border-radius:8px;padding:8px 10px;
+  font-family:inherit;font-size:13px;color:var(--ink);background:#fff;
+}
+.slider-wrap{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-2)}
+input[type=range]{width:100px}
+
+.btn{
+  border:1px solid var(--line);background:#fff;color:var(--ink);
+  padding:9px 15px;border-radius:9px;font-family:inherit;font-size:13.5px;font-weight:500;
+  cursor:pointer;transition:all .15s;
+}
+.btn:hover{background:var(--paper-2)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-primary:hover{filter:brightness(1.08)}
+.btn-full{width:100%}
+.btn-icon{font-size:15px}
+
+.ai-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@media(max-width:400px){.ai-grid{grid-template-columns:1fr}}
+
+.ask-row{display:flex;gap:8px;margin-top:10px}
+.ask-row input{
+  flex:1;border:1px solid var(--line);border-radius:9px;padding:9px 12px;
+  font-family:inherit;font-size:13.5px;background:var(--paper);
+}
+.ask-row input:focus{outline:none;border-color:var(--accent)}
+
+.ai-output{
+  margin-top:14px;padding:16px;background:var(--paper-2);border-left:3px solid var(--accent);
+  border-radius:0 8px 8px 0;font-size:14.5px;line-height:1.7;white-space:pre-wrap;
+}
+.ai-output-label{font-size:11.5px;letter-spacing:.3px;text-transform:uppercase;color:var(--ink-3);font-weight:600;margin-bottom:8px}
+
+.loading-inline{display:flex;align-items:center;gap:8px;color:var(--ink-2);font-size:13px;padding:8px 0}
+.dot-spin{width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+
+.toast{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--ink);color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;
+  opacity:0;pointer-events:none;transition:all .25s;z-index:100;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<div id="loadingScreen" class="screen active"><div class="spinner"></div></div>
+
+<div id="authScreen" class="screen">
+  <div class="wrap" style="padding-top:90px;text-align:center">
+    <div style="font-size:34px">🎧</div>
+    <h1 style="font-family:'Fraunces',Georgia,serif;font-size:25px;margin-top:14px">Study</h1>
+    <p style="color:var(--ink-2);margin-top:9px;font-size:14px">Sign in to continue.</p>
+    <a href="/" class="btn btn-primary" style="display:inline-block;margin-top:24px;text-decoration:none">Go to sign in</a>
+  </div>
+</div>
+
+<div id="mainScreen" class="screen">
+  <header>
+    <div class="header-inner">
+      <div class="brand">Study</div>
+      <div class="header-actions">
+        <div class="modes">
+          <a href="/">Personal</a>
+          <a href="/business">Business</a>
+          <a href="/journal">Journal</a>
+          <a href="/study" class="current">Study</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+
+    <div class="card" id="pasteCard">
+      <h2>Paste your lesson</h2>
+      <div class="hint">Paste the text of a WGU lesson below. You can have it read aloud, or ask for a summary, examples, or a quiz.</div>
+      <textarea id="lessonInput" placeholder="Paste the lesson text here…"></textarea>
+      <div class="row" style="margin-top:12px">
+        <button class="btn btn-primary" id="loadLessonBtn">Start studying this lesson</button>
+        <button class="btn" id="clearLessonBtn">Clear</button>
+      </div>
+    </div>
+
+    <div class="card" id="readerCard" style="display:none">
+      <h2>Read to me</h2>
+      <div class="row">
+        <select id="voiceSelect"></select>
+        <div class="slider-wrap">
+          Speed
+          <input type="range" id="rateSlider" min="0.7" max="1.4" step="0.05" value="1">
+          <span id="rateLabel">1.0x</span>
+        </div>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary btn-icon" id="playBtn">▶ Play</button>
+        <button class="btn btn-icon" id="pauseBtn" style="display:none">⏸ Pause</button>
+        <button class="btn btn-icon" id="resumeBtn" style="display:none">▶ Resume</button>
+        <button class="btn btn-icon" id="stopBtn">⏹ Stop</button>
+        <button class="btn btn-icon" id="backBtn" title="Previous sentence">⏮</button>
+        <button class="btn btn-icon" id="fwdBtn" title="Next sentence">⏭</button>
+      </div>
+      <div class="lesson-view" id="lessonView" style="margin-top:16px"></div>
+    </div>
+
+    <div class="card" id="aiCard" style="display:none">
+      <h2>Ask about this lesson</h2>
+      <div class="ai-grid">
+        <button class="btn" data-mode="summarize">📝 Summarize</button>
+        <button class="btn" data-mode="examples">💡 Give examples</button>
+        <button class="btn" data-mode="quiz">✅ Quiz me</button>
+        <button class="btn" data-mode="simpler">🔍 Explain simpler</button>
+      </div>
+      <div class="ask-row">
+        <input type="text" id="askInput" placeholder="Or ask your own question about this lesson…">
+        <button class="btn btn-primary" id="askBtn">Ask</button>
+      </div>
+      <div id="aiLoading" class="loading-inline" style="display:none">
+        <div class="dot-spin"></div> Thinking…
+      </div>
+      <div id="aiOutputWrap" style="display:none">
+        <div class="ai-output">
+          <div class="ai-output-label" id="aiOutputLabel">Summary</div>
+          <div id="aiOutputText"></div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn" id="readAiBtn">🔊 Read this aloud</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===================================================================
+   CONFIG
+   =================================================================== */
+const SUPABASE_URL = 'https://blbizkzvjylptwterldw.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJsYml6a3p2anlscHR3dGVybGR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzNTY3MTIsImV4cCI6MjEwMzkzMjcxMn0.f81p9OuTyczjiJmm2ujbHJXL8PBQLr_LPMqswWiiOrU';
+/* =================================================================== */
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let sentences = [];       // {text, el}
+let currentIdx = -1;
+let isPaused = false;
+let speaking = false;
+
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>{
+    s.classList.remove('active');
+    s.style.display='none';
+  });
+  const el = document.getElementById(id);
+  el.classList.add('active');
+  el.style.display = (id==='loadingScreen') ? 'flex' : 'block';
+}
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2400);
+}
+
+async function init(){
+  const {data:{session}} = await sb.auth.getSession();
+  if(!session){ showScreen('authScreen'); return; }
+  showScreen('mainScreen');
+  populateVoices();
+}
+init();
+
+/* ---------- voice list ---------- */
+let voices = [];
+function populateVoices(){
+  voices = window.speechSynthesis.getVoices();
+  if(!voices.length) return;
+  const sel = document.getElementById('voiceSelect');
+  sel.innerHTML = '';
+  // prefer English voices, and float "natural"/"premium"/"enhanced" sounding ones to the top
+  const scored = voices
+    .filter(v => v.lang.startsWith('en'))
+    .map(v => {
+      const name = v.name.toLowerCase();
+      let score = 0;
+      if(/natural|premium|enhanced|neural/.test(name)) score += 10;
+      if(v.localService) score += 1;
+      return {v, score};
+    })
+    .sort((a,b) => b.score - a.score);
+  const list = scored.length ? scored.map(s=>s.v) : voices;
+  list.forEach((v,i)=>{
+    const opt = document.createElement('option');
+    opt.value = v.name;
+    opt.textContent = `${v.name} (${v.lang})`;
+    sel.appendChild(opt);
+  });
+  const saved = localStorage.getItem('study_voice');
+  if(saved && list.some(v=>v.name===saved)) sel.value = saved;
+  sel.addEventListener('change', ()=> localStorage.setItem('study_voice', sel.value));
+}
+if('speechSynthesis' in window){
+  window.speechSynthesis.onvoiceschanged = populateVoices;
+} else {
+  toast('Your browser doesn\'t support read-aloud. Try Chrome, Edge, or Safari.');
+}
+
+/* ---------- lesson loading ---------- */
+document.getElementById('loadLessonBtn').addEventListener('click', ()=>{
+  const text = document.getElementById('lessonInput').value.trim();
+  if(!text){ toast('Paste a lesson first'); return; }
+  loadLesson(text);
+});
+document.getElementById('clearLessonBtn').addEventListener('click', ()=>{
+  document.getElementById('lessonInput').value = '';
+});
+
+let currentLesson = '';
+function loadLesson(text){
+  currentLesson = text;
+  stopReading();
+  const view = document.getElementById('lessonView');
+  view.innerHTML = '';
+  sentences = splitSentences(text).map(s => {
+    const span = document.createElement('span');
+    span.className = 'sent';
+    span.textContent = s + ' ';
+    view.appendChild(span);
+    return {text: s, el: span};
+  });
+  document.getElementById('readerCard').style.display = 'block';
+  document.getElementById('aiCard').style.display = 'block';
+  document.getElementById('readerCard').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function splitSentences(text){
+  // split into sentence-ish chunks; keeps things reasonable for TTS + highlighting
+  return text
+    .replace(/\s+/g,' ')
+    .trim()
+    .match(/[^.!?]+[.!?]+(\s|$)|[^.!?]+$/g)
+    ?.map(s => s.trim())
+    .filter(Boolean) || [text];
+}
+
+/* ---------- reading controls ---------- */
+function getSelectedVoice(){
+  const name = document.getElementById('voiceSelect').value;
+  return voices.find(v => v.name === name) || voices[0];
+}
+function speakFrom(idx){
+  if(idx >= sentences.length){ stopReading(); return; }
+  currentIdx = idx;
+  highlightCurrent();
+  const u = new SpeechSynthesisUtterance(sentences[idx].text);
+  const v = getSelectedVoice();
+  if(v) u.voice = v;
+  u.rate = parseFloat(document.getElementById('rateSlider').value);
+  u.onend = () => { if(!isPaused && speaking) speakFrom(idx+1); };
+  window.speechSynthesis.speak(u);
+}
+function highlightCurrent(){
+  sentences.forEach((s,i)=> s.el.classList.toggle('current', i===currentIdx));
+  if(sentences[currentIdx]) sentences[currentIdx].el.scrollIntoView({behavior:'smooth', block:'center'});
+}
+function startReading(){
+  if(!sentences.length) return;
+  window.speechSynthesis.cancel();
+  speaking = true; isPaused = false;
+  setPlayUI('playing');
+  speakFrom(currentIdx >= 0 ? currentIdx : 0);
+}
+function stopReading(){
+  window.speechSynthesis.cancel();
+  speaking = false; isPaused = false; currentIdx = -1;
+  sentences.forEach(s => s.el.classList.remove('current'));
+  setPlayUI('stopped');
+}
+function pauseReading(){
+  window.speechSynthesis.cancel();
+  isPaused = true; speaking = false;
+  setPlayUI('paused');
+}
+function setPlayUI(state){
+  const play=document.getElementById('playBtn'), pause=document.getElementById('pauseBtn'), resume=document.getElementById('resumeBtn');
+  play.style.display = state==='stopped' ? 'inline-block' : 'none';
+  pause.style.display = state==='playing' ? 'inline-block' : 'none';
+  resume.style.display = state==='paused' ? 'inline-block' : 'none';
+}
+document.getElementById('playBtn').addEventListener('click', startReading);
+document.getElementById('resumeBtn').addEventListener('click', startReading);
+document.getElementById('pauseBtn').addEventListener('click', pauseReading);
+document.getElementById('stopBtn').addEventListener('click', stopReading);
+document.getElementById('backBtn').addEventListener('click', ()=>{
+  const wasPlaying = speaking;
+  window.speechSynthesis.cancel();
+  currentIdx = Math.max(0, currentIdx-1);
+  if(wasPlaying){ speaking=true; isPaused=false; speakFrom(currentIdx); } else highlightCurrent();
+});
+document.getElementById('fwdBtn').addEventListener('click', ()=>{
+  const wasPlaying = speaking;
+  window.speechSynthesis.cancel();
+  currentIdx = Math.min(sentences.length-1, currentIdx+1);
+  if(wasPlaying){ speaking=true; isPaused=false; speakFrom(currentIdx); } else highlightCurrent();
+});
+document.getElementById('rateSlider').addEventListener('input', (e)=>{
+  document.getElementById('rateLabel').textContent = parseFloat(e.target.value).toFixed(2)+'x';
+});
+
+/* ---------- AI panel ---------- */
+const modeLabels = { summarize:'Summary', examples:'Examples', quiz:'Quiz', simpler:'Simpler explanation', ask:'Answer' };
+let lastAiText = '';
+
+async function runAI(mode, question){
+  if(!currentLesson){ toast('Load a lesson first'); return; }
+  document.getElementById('aiLoading').style.display = 'flex';
+  document.getElementById('aiOutputWrap').style.display = 'none';
+  try{
+    const res = await fetch('/api/study-ai', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ lesson: currentLesson, mode, question })
+    });
+    const data = await res.json();
+    if(!res.ok || data.error){ throw new Error(data.error || 'Something went wrong'); }
+    lastAiText = data.text;
+    document.getElementById('aiOutputLabel').textContent = modeLabels[mode] || 'Answer';
+    document.getElementById('aiOutputText').textContent = data.text;
+    document.getElementById('aiOutputWrap').style.display = 'block';
+  }catch(e){
+    toast(e.message || 'AI request failed');
+  }finally{
+    document.getElementById('aiLoading').style.display = 'none';
+  }
+}
+
+document.querySelectorAll('#aiCard [data-mode]').forEach(btn=>{
+  btn.addEventListener('click', ()=> runAI(btn.dataset.mode));
+});
+document.getElementById('askBtn').addEventListener('click', ()=>{
+  const q = document.getElementById('askInput').value.trim();
+  if(!q){ toast('Type a question first'); return; }
+  runAI('ask', q);
+});
+document.getElementById('askInput').addEventListener('keydown', (e)=>{
+  if(e.key==='Enter') document.getElementById('askBtn').click();
+});
+document.getElementById('readAiBtn').addEventListener('click', ()=>{
+  if(!lastAiText) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(lastAiText);
+  const v = getSelectedVoice();
+  if(v) u.voice = v;
+  u.rate = parseFloat(document.getElementById('rateSlider').value);
+  window.speechSynthesis.speak(u);
+});
+</script>
+</body>
+</html>
