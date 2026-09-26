@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎧</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=Kalam:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -123,6 +123,80 @@ input[type=range]{width:100px}
   opacity:0;pointer-events:none;transition:all .25s;z-index:100;
 }
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ---------- whiteboard mode ---------- */
+:root{
+  --wb-white:#fffdf7;
+  --wb-ink:#33312c;
+  --wb-bullets:#3f6b7a;
+  --wb-definition:#7a5c8a;
+  --wb-process:#b5762f;
+  --wb-comparison:#4c8a5f;
+  --wb-formula:#42505c;
+  --wb-note:#b08a2e;
+}
+.wb-progress{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}
+.wb-dot{
+  width:9px;height:9px;border-radius:50%;border:none;background:var(--line);
+  cursor:pointer;padding:0;transition:all .15s;
+}
+.wb-dot:hover{background:var(--ink-3)}
+.wb-dot.current{background:var(--accent);transform:scale(1.3)}
+
+.wb-panel{
+  margin-top:14px;background:var(--wb-white);border:1px solid var(--line);border-radius:12px;
+  padding:28px 24px;min-height:180px;display:flex;align-items:center;justify-content:center;
+  box-shadow:inset 0 1px 4px rgba(43,37,32,.05);
+}
+.wb-card-inner{
+  width:100%;font-family:'Kalam',cursive;color:var(--wb-ink);
+}
+
+.wb-line{opacity:0;animation:wbIn .45s ease forwards}
+@keyframes wbIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+.wb-title{font-size:30px;font-weight:700;text-align:center;padding:20px 0;color:var(--ink)}
+
+.wb-heading{font-size:20px;font-weight:700;margin-bottom:14px}
+.wb-type-bullets .wb-heading{color:var(--wb-bullets)}
+.wb-bullet{font-size:18px;line-height:1.6;padding-left:2px;margin-bottom:6px}
+
+.wb-type-definition .wb-heading{color:var(--wb-definition)}
+.wb-def-box{
+  border:2px solid var(--wb-definition);border-radius:10px;padding:14px 16px;
+  background:rgba(122,92,138,.06);
+}
+.wb-def-term{font-size:19px;font-weight:700;color:var(--wb-definition);margin-bottom:6px}
+.wb-def-body{font-size:17px;line-height:1.55}
+
+.wb-type-process .wb-heading{color:var(--wb-process)}
+.wb-process-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:4px}
+.wb-process-step{display:flex;align-items:center;gap:10px;font-size:17px}
+.wb-process-step span:first-child{
+  border:2px solid var(--wb-process);border-radius:9px;padding:8px 12px;background:rgba(181,118,47,.07);
+}
+.wb-arrow{color:var(--wb-process);font-size:20px;font-weight:700}
+
+.wb-type-comparison .wb-heading{color:var(--wb-comparison);text-align:center}
+.wb-comparison-row{display:flex;align-items:flex-start;gap:16px;justify-content:center}
+.wb-col{flex:1;min-width:0;border:2px solid var(--wb-comparison);border-radius:10px;padding:12px 14px;background:rgba(76,138,95,.06)}
+.wb-col-heading{font-size:18px;font-weight:700;color:var(--wb-comparison);margin-bottom:8px;text-align:center}
+.wb-vs{align-self:center;font-size:14px;color:var(--ink-3);font-weight:700}
+
+.wb-type-formula .wb-heading{color:var(--wb-formula)}
+.wb-formula-box{
+  font-family:'Courier New',monospace;background:rgba(66,80,92,.08);border:1px solid var(--wb-formula);
+  border-radius:8px;padding:14px 16px;
+}
+.wb-formula-line{font-size:16.5px;line-height:1.7;color:var(--wb-formula);font-weight:700}
+
+.wb-type-note{border-left:3px solid var(--wb-note);padding-left:14px}
+.wb-type-note .wb-heading{color:var(--wb-note)}
+
+@media(max-width:520px){
+  .wb-comparison-row{flex-direction:column}
+  .wb-vs{padding:2px 0}
+}
 </style>
 </head>
 <body>
@@ -182,8 +256,34 @@ input[type=range]{width:100px}
         <button class="btn btn-icon" id="stopBtn">⏹ Stop</button>
         <button class="btn btn-icon" id="backBtn" title="Previous sentence">⏮</button>
         <button class="btn btn-icon" id="fwdBtn" title="Next sentence">⏭</button>
+        <button class="btn btn-icon" id="genWhiteboardBtn">🖍️ Generate whiteboard</button>
+      </div>
+      <div id="wbGenLoading" class="loading-inline" style="display:none">
+        <div class="dot-spin"></div> Sketching out the whiteboard…
       </div>
       <div class="lesson-view" id="lessonView" style="margin-top:16px"></div>
+    </div>
+
+    <div class="card" id="whiteboardCard" style="display:none">
+      <h2>Whiteboard</h2>
+      <div class="row">
+        <select id="wbVoiceSelect"></select>
+        <div class="slider-wrap">
+          Speed
+          <input type="range" id="wbRateSlider" min="0.7" max="1.4" step="0.05" value="1">
+          <span id="wbRateLabel">1.0x</span>
+        </div>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary btn-icon" id="wbPlayBtn">▶ Play</button>
+        <button class="btn btn-icon" id="wbPauseBtn" style="display:none">⏸ Pause</button>
+        <button class="btn btn-icon" id="wbResumeBtn" style="display:none">▶ Resume</button>
+        <button class="btn btn-icon" id="wbStopBtn">⏹ Stop</button>
+        <button class="btn btn-icon" id="wbBackBtn" title="Previous beat">⏮</button>
+        <button class="btn btn-icon" id="wbFwdBtn" title="Next beat">⏭</button>
+      </div>
+      <div class="wb-progress" id="wbProgress"></div>
+      <div class="wb-panel" id="wbPanel"><div class="wb-card-inner" id="wbCardInner"></div></div>
     </div>
 
     <div class="card" id="aiCard" style="display:none">
@@ -260,8 +360,6 @@ let voices = [];
 function populateVoices(){
   voices = window.speechSynthesis.getVoices();
   if(!voices.length) return;
-  const sel = document.getElementById('voiceSelect');
-  sel.innerHTML = '';
   // prefer English voices, and float "natural"/"premium"/"enhanced" sounding ones to the top
   const scored = voices
     .filter(v => v.lang.startsWith('en'))
@@ -274,15 +372,20 @@ function populateVoices(){
     })
     .sort((a,b) => b.score - a.score);
   const list = scored.length ? scored.map(s=>s.v) : voices;
-  list.forEach((v,i)=>{
-    const opt = document.createElement('option');
-    opt.value = v.name;
-    opt.textContent = `${v.name} (${v.lang})`;
-    sel.appendChild(opt);
+  ['voiceSelect','wbVoiceSelect'].forEach(selId=>{
+    const sel = document.getElementById(selId);
+    if(!sel) return;
+    sel.innerHTML = '';
+    list.forEach(v=>{
+      const opt = document.createElement('option');
+      opt.value = v.name;
+      opt.textContent = `${v.name} (${v.lang})`;
+      sel.appendChild(opt);
+    });
+    const saved = localStorage.getItem('study_voice');
+    if(saved && list.some(v=>v.name===saved)) sel.value = saved;
+    sel.addEventListener('change', ()=> localStorage.setItem('study_voice', sel.value));
   });
-  const saved = localStorage.getItem('study_voice');
-  if(saved && list.some(v=>v.name===saved)) sel.value = saved;
-  sel.addEventListener('change', ()=> localStorage.setItem('study_voice', sel.value));
 }
 if('speechSynthesis' in window){
   window.speechSynthesis.onvoiceschanged = populateVoices;
@@ -304,6 +407,12 @@ let currentLesson = '';
 function loadLesson(text){
   currentLesson = text;
   stopReading();
+  wbStopReading();
+  beats = [];
+  currentBeatIdx = -1;
+  document.getElementById('whiteboardCard').style.display = 'none';
+  document.getElementById('wbCardInner').innerHTML = '';
+  document.getElementById('wbProgress').innerHTML = '';
   const view = document.getElementById('lessonView');
   view.innerHTML = '';
   sentences = splitSentences(text).map(s => {
@@ -350,6 +459,7 @@ function highlightCurrent(){
 }
 function startReading(){
   if(!sentences.length) return;
+  wbStopReading();
   window.speechSynthesis.cancel();
   speaking = true; isPaused = false;
   setPlayUI('playing');
@@ -439,6 +549,179 @@ document.getElementById('readAiBtn').addEventListener('click', ()=>{
   u.rate = parseFloat(document.getElementById('rateSlider').value);
   window.speechSynthesis.speak(u);
 });
+
+/* ---------- whiteboard mode ---------- */
+let beats = [];
+let currentBeatIdx = -1;
+let wbSpeaking = false;
+let wbPaused = false;
+
+function escapeHtml(str){
+  return String(str==null ? '' : str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function renderCardHTML(card){
+  card = card || {};
+  const type = card.type;
+  const lineSpan = (html, idx) => `<div class="wb-line" style="animation-delay:${idx*150}ms">${html}</div>`;
+
+  if(type === 'title'){
+    return `<div class="wb-title wb-line" style="animation-delay:0ms">${escapeHtml(card.heading)}</div>`;
+  }
+  if(type === 'definition'){
+    let idx = 0;
+    const heading = card.heading ? lineSpan(`<div class="wb-heading">${escapeHtml(card.heading)}</div>`, idx++) : '';
+    const box = lineSpan(`<div class="wb-def-box"><div class="wb-def-term">${escapeHtml(card.term)}</div><div class="wb-def-body">${escapeHtml(card.definition)}</div></div>`, idx++);
+    return `<div class="wb-type-definition">${heading}${box}</div>`;
+  }
+  if(type === 'process'){
+    let idx = 0;
+    const heading = card.heading ? lineSpan(`<div class="wb-heading">${escapeHtml(card.heading)}</div>`, idx++) : '';
+    const items = card.items || [];
+    const steps = items.map((it,i)=>{
+      const arrow = i < items.length-1 ? '<span class="wb-arrow">→</span>' : '';
+      return `<div class="wb-process-step wb-line" style="animation-delay:${(idx+i)*150}ms"><span>${escapeHtml(it)}</span>${arrow}</div>`;
+    }).join('');
+    return `<div class="wb-type-process">${heading}<div class="wb-process-row">${steps}</div></div>`;
+  }
+  if(type === 'comparison'){
+    let idx = 0;
+    const heading = card.heading ? lineSpan(`<div class="wb-heading">${escapeHtml(card.heading)}</div>`, idx++) : '';
+    const col = (side, startIdx) => {
+      if(!side) return '';
+      const h = side.heading ? `<div class="wb-col-heading wb-line" style="animation-delay:${startIdx*150}ms">${escapeHtml(side.heading)}</div>` : '';
+      const its = (side.items||[]).map((it,i)=>`<div class="wb-bullet wb-line" style="animation-delay:${(startIdx+1+i)*150}ms">• ${escapeHtml(it)}</div>`).join('');
+      return h + its;
+    };
+    const leftHtml = col(card.left, idx);
+    idx += 1 + ((card.left && card.left.items) ? card.left.items.length : 0);
+    const rightHtml = col(card.right, idx);
+    return `<div class="wb-type-comparison">${heading}<div class="wb-comparison-row"><div class="wb-col">${leftHtml}</div><div class="wb-vs">vs</div><div class="wb-col">${rightHtml}</div></div></div>`;
+  }
+  if(type === 'formula'){
+    let idx = 0;
+    const heading = card.heading ? lineSpan(`<div class="wb-heading">${escapeHtml(card.heading)}</div>`, idx++) : '';
+    const lines = (card.items||[]).map(it=>lineSpan(`<div class="wb-formula-line">${escapeHtml(it)}</div>`, idx++)).join('');
+    return `<div class="wb-type-formula">${heading}<div class="wb-formula-box">${lines}</div></div>`;
+  }
+  if(type === 'note'){
+    let idx = 0;
+    const heading = card.heading ? lineSpan(`<div class="wb-heading">📌 ${escapeHtml(card.heading)}</div>`, idx++) : '';
+    const items = (card.items||[]).map(it=>lineSpan(`<div class="wb-bullet">${escapeHtml(it)}</div>`, idx++)).join('');
+    return `<div class="wb-type-note">${heading}${items}</div>`;
+  }
+  // "bullets" and any unknown type fall back to a heading + bullet list
+  let idx = 0;
+  const heading = card.heading ? lineSpan(`<div class="wb-heading">${escapeHtml(card.heading)}</div>`, idx++) : '';
+  const items = (card.items||[]).map(it=>lineSpan(`<div class="wb-bullet">• ${escapeHtml(it)}</div>`, idx++)).join('');
+  return `<div class="wb-type-bullets">${heading}${items}</div>`;
+}
+
+function renderProgress(){
+  const wrap = document.getElementById('wbProgress');
+  wrap.innerHTML = '';
+  beats.forEach((b,i)=>{
+    const dot = document.createElement('button');
+    dot.className = 'wb-dot' + (i===currentBeatIdx ? ' current' : '');
+    dot.title = `Beat ${i+1} of ${beats.length}`;
+    dot.addEventListener('click', ()=> jumpToBeat(i));
+    wrap.appendChild(dot);
+  });
+}
+function updateProgressActive(){
+  document.querySelectorAll('#wbProgress .wb-dot').forEach((d,i)=> d.classList.toggle('current', i===currentBeatIdx));
+}
+function renderBeat(idx){
+  currentBeatIdx = idx;
+  document.getElementById('wbCardInner').innerHTML = renderCardHTML(beats[idx].card);
+  updateProgressActive();
+}
+
+function getWbSelectedVoice(){
+  const name = document.getElementById('wbVoiceSelect').value;
+  return voices.find(v => v.name === name) || voices[0];
+}
+function wbSpeakFrom(idx){
+  if(idx >= beats.length){ wbStopReading(); return; }
+  renderBeat(idx);
+  const u = new SpeechSynthesisUtterance(beats[idx].text);
+  const v = getWbSelectedVoice();
+  if(v) u.voice = v;
+  u.rate = parseFloat(document.getElementById('wbRateSlider').value);
+  u.onend = () => { if(!wbPaused && wbSpeaking) wbSpeakFrom(idx+1); };
+  window.speechSynthesis.speak(u);
+}
+function wbStartReading(){
+  if(!beats.length) return;
+  stopReading();
+  window.speechSynthesis.cancel();
+  wbSpeaking = true; wbPaused = false;
+  setWbPlayUI('playing');
+  wbSpeakFrom(currentBeatIdx >= 0 ? currentBeatIdx : 0);
+}
+function wbStopReading(){
+  window.speechSynthesis.cancel();
+  wbSpeaking = false; wbPaused = false;
+  setWbPlayUI('stopped');
+}
+function wbPauseReading(){
+  window.speechSynthesis.cancel();
+  wbPaused = true; wbSpeaking = false;
+  setWbPlayUI('paused');
+}
+function setWbPlayUI(state){
+  const play=document.getElementById('wbPlayBtn'), pause=document.getElementById('wbPauseBtn'), resume=document.getElementById('wbResumeBtn');
+  play.style.display = state==='stopped' ? 'inline-block' : 'none';
+  pause.style.display = state==='playing' ? 'inline-block' : 'none';
+  resume.style.display = state==='paused' ? 'inline-block' : 'none';
+}
+function jumpToBeat(idx){
+  if(!beats.length) return;
+  const wasPlaying = wbSpeaking;
+  window.speechSynthesis.cancel();
+  currentBeatIdx = Math.max(0, Math.min(beats.length-1, idx));
+  if(wasPlaying){ wbSpeaking = true; wbPaused = false; wbSpeakFrom(currentBeatIdx); }
+  else { renderBeat(currentBeatIdx); }
+}
+document.getElementById('wbPlayBtn').addEventListener('click', wbStartReading);
+document.getElementById('wbResumeBtn').addEventListener('click', wbStartReading);
+document.getElementById('wbPauseBtn').addEventListener('click', wbPauseReading);
+document.getElementById('wbStopBtn').addEventListener('click', wbStopReading);
+document.getElementById('wbBackBtn').addEventListener('click', ()=> jumpToBeat(currentBeatIdx-1));
+document.getElementById('wbFwdBtn').addEventListener('click', ()=> jumpToBeat(currentBeatIdx+1));
+document.getElementById('wbRateSlider').addEventListener('input', (e)=>{
+  document.getElementById('wbRateLabel').textContent = parseFloat(e.target.value).toFixed(2)+'x';
+});
+
+async function generateWhiteboard(){
+  if(!currentLesson){ toast('Load a lesson first'); return; }
+  const btn = document.getElementById('genWhiteboardBtn');
+  btn.disabled = true;
+  document.getElementById('wbGenLoading').style.display = 'flex';
+  try{
+    const res = await fetch('/api/study-ai', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ lesson: currentLesson, mode: 'whiteboard' })
+    });
+    const data = await res.json();
+    if(!res.ok || data.error){ throw new Error(data.error || 'Something went wrong'); }
+    if(!Array.isArray(data.beats) || !data.beats.length){ throw new Error('No beats came back'); }
+    beats = data.beats;
+    currentBeatIdx = -1;
+    wbStopReading();
+    renderProgress();
+    renderBeat(0);
+    document.getElementById('whiteboardCard').style.display = 'block';
+    document.getElementById('whiteboardCard').scrollIntoView({behavior:'smooth', block:'start'});
+  }catch(e){
+    toast(e.message || 'Whiteboard generation failed');
+  }finally{
+    btn.disabled = false;
+    document.getElementById('wbGenLoading').style.display = 'none';
+  }
+}
+document.getElementById('genWhiteboardBtn').addEventListener('click', generateWhiteboard);
 </script>
 </body>
 </html>
