@@ -71,10 +71,19 @@ textarea{
 textarea:focus{outline:none;border-color:var(--accent)}
 
 .lesson-view{
-  font-size:15px;line-height:1.8;white-space:pre-wrap;
+  font-size:15px;line-height:1.8;
 }
 .lesson-view .sent{transition:background .15s}
 .lesson-view .sent.current{background:var(--accent-soft);border-radius:3px}
+.lesson-view p.lesson-para{margin:0 0 16px}
+.lesson-view p.lesson-para:last-child{margin-bottom:0}
+.lesson-view h3.lesson-heading{
+  font-family:'Fraunces',Georgia,serif;font-size:17px;font-weight:600;
+  margin:22px 0 10px;color:var(--ink);
+}
+.lesson-view h3.lesson-heading:first-child{margin-top:0}
+.lesson-view ul.lesson-list, .lesson-view ol.lesson-list{margin:0 0 16px 22px;padding:0}
+.lesson-view li{margin-bottom:6px}
 
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .row + .row{margin-top:10px}
@@ -520,15 +529,7 @@ function loadLesson(text){
   document.getElementById('quizList').innerHTML = '';
   document.getElementById('quizScore').style.display = 'none';
   document.getElementById('aiOutputWrap').style.display = 'none';
-  const view = document.getElementById('lessonView');
-  view.innerHTML = '';
-  sentences = splitSentences(text).map(s => {
-    const span = document.createElement('span');
-    span.className = 'sent';
-    span.textContent = s + ' ';
-    view.appendChild(span);
-    return {text: s, el: span};
-  });
+  renderLessonView(text);
   document.getElementById('readerCard').style.display = 'block';
   document.getElementById('aiCard').style.display = 'block';
   document.getElementById('floatingReaderControls').style.display = 'flex';
@@ -568,6 +569,116 @@ function splitSentences(text){
     .match(/[^.!?]+[.!?]+(\s|$)|[^.!?]+$/g)
     ?.map(s => s.trim())
     .filter(Boolean) || [text];
+}
+
+/* ---------- lesson structure parsing (paragraphs / headings / lists) ---------- */
+function isBulletLine(line){
+  return /^\s*([*\-•]|\d+[.)])\s+\S/.test(line);
+}
+function isOrderedBulletLine(line){
+  return /^\s*\d+[.)]\s+\S/.test(line);
+}
+function stripBulletMarker(line){
+  return line.replace(/^\s*([*\-•]|\d+[.)])\s+/, '').trim();
+}
+function isHeadingLine(line){
+  const trimmed = line.trim();
+  if(!trimmed || trimmed.length > 70) return false;
+  if(isBulletLine(trimmed)) return false;
+  if(/[.!?]\s*$/.test(trimmed)) return false;
+  return true;
+}
+
+// Splits one blank-line-separated block into heading/list/paragraph elements,
+// so a heading line can't accidentally absorb the paragraph lines after it.
+function parseBlockLines(rawBlock){
+  const lines = rawBlock.split('\n').map(l => l.trim()).filter(Boolean);
+  const elements = [];
+  let paraBuffer = [];
+  let listBuffer = null;
+
+  function flushPara(){
+    if(paraBuffer.length){
+      elements.push({type:'para', text: paraBuffer.join(' ')});
+      paraBuffer = [];
+    }
+  }
+  function flushList(){
+    if(listBuffer){
+      elements.push({type:'list', ordered: listBuffer.ordered, items: listBuffer.items});
+      listBuffer = null;
+    }
+  }
+
+  lines.forEach((line, i)=>{
+    if(isBulletLine(line)){
+      flushPara();
+      const ordered = isOrderedBulletLine(line);
+      if(!listBuffer || listBuffer.ordered !== ordered){ flushList(); listBuffer = {ordered, items:[]}; }
+      listBuffer.items.push(stripBulletMarker(line));
+      return;
+    }
+    flushList();
+    // Only the very first line of a blank-line-separated block can become a
+    // heading — otherwise a hard-wrapped paragraph (no blank lines, just short
+    // physical lines) would get every line misread as its own heading.
+    if(i === 0 && isHeadingLine(line)){
+      elements.push({type:'heading', text: line});
+      return;
+    }
+    paraBuffer.push(line);
+  });
+  flushList();
+  flushPara();
+  return elements;
+}
+
+function parseLessonBlocks(text){
+  const normalized = String(text || '').replace(/\r\n?/g, '\n');
+  const rawBlocks = normalized.split(/\n[ \t]*\n+/).map(b => b.trim()).filter(Boolean);
+  const elements = [];
+  rawBlocks.forEach(raw => { elements.push(...parseBlockLines(raw)); });
+  return elements.length ? elements : [{type:'para', text: normalized.trim()}];
+}
+
+function appendSentenceSpans(container, text){
+  splitSentences(text).forEach(s=>{
+    const span = document.createElement('span');
+    span.className = 'sent';
+    span.textContent = s + ' ';
+    container.appendChild(span);
+    sentences.push({text: s, el: span});
+  });
+}
+
+function renderLessonView(text){
+  const view = document.getElementById('lessonView');
+  view.innerHTML = '';
+  sentences = [];
+  parseLessonBlocks(text).forEach(block=>{
+    if(block.type === 'heading'){
+      const h = document.createElement('h3');
+      h.className = 'lesson-heading';
+      appendSentenceSpans(h, block.text);
+      view.appendChild(h);
+      return;
+    }
+    if(block.type === 'list'){
+      const listEl = document.createElement(block.ordered ? 'ol' : 'ul');
+      listEl.className = 'lesson-list';
+      block.items.forEach(itemText=>{
+        const li = document.createElement('li');
+        appendSentenceSpans(li, itemText);
+        listEl.appendChild(li);
+      });
+      view.appendChild(listEl);
+      return;
+    }
+    const p = document.createElement('p');
+    p.className = 'lesson-para';
+    appendSentenceSpans(p, block.text);
+    view.appendChild(p);
+  });
 }
 
 /* ---------- reading controls ---------- */
