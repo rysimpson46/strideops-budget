@@ -110,9 +110,15 @@ input[type=range]{width:100px}
 
 .ai-output{
   margin-top:14px;padding:16px;background:var(--paper-2);border-left:3px solid var(--accent);
-  border-radius:0 8px 8px 0;font-size:14.5px;line-height:1.7;white-space:pre-wrap;
+  border-radius:0 8px 8px 0;font-size:14.5px;line-height:1.7;
 }
 .ai-output-label{font-size:11.5px;letter-spacing:.3px;text-transform:uppercase;color:var(--ink-3);font-weight:600;margin-bottom:8px}
+.ai-output p{margin:0 0 10px}
+.ai-output p:last-child{margin-bottom:0}
+.ai-output ul{margin:0 0 10px 20px;padding:0}
+.ai-output ul:last-child{margin-bottom:0}
+.ai-output li{margin-bottom:4px}
+.ai-output strong{font-weight:700;color:var(--ink)}
 
 .loading-inline{display:flex;align-items:center;gap:8px;color:var(--ink-2);font-size:13px;padding:8px 0}
 .dot-spin{width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
@@ -573,7 +579,7 @@ function speakFrom(idx){
   if(idx >= sentences.length){ stopReading(); return; }
   currentIdx = idx;
   highlightCurrent();
-  const u = new SpeechSynthesisUtterance(sentences[idx].text);
+  const u = new SpeechSynthesisUtterance(cleanForSpeech(sentences[idx].text));
   const v = getSelectedVoice();
   if(v) u.voice = v;
   u.rate = parseFloat(document.getElementById('rateSlider').value);
@@ -649,7 +655,7 @@ async function runAI(mode, question){
     aiUtterance = null;
     lastAiText = data.text;
     document.getElementById('aiOutputLabel').textContent = modeLabels[mode] || 'Answer';
-    document.getElementById('aiOutputText').textContent = data.text;
+    document.getElementById('aiOutputText').innerHTML = renderMarkdownLite(data.text);
     document.getElementById('aiOutputWrap').style.display = 'block';
   }catch(e){
     toast(e.message || 'AI request failed');
@@ -692,7 +698,7 @@ document.getElementById('readAiBtn').addEventListener('click', ()=>{
     return;
   }
   stopAllSpeech();
-  aiUtterance = new SpeechSynthesisUtterance(lastAiText);
+  aiUtterance = new SpeechSynthesisUtterance(cleanForSpeech(lastAiText));
   const v = getSelectedVoice();
   if(v) aiUtterance.voice = v;
   aiUtterance.rate = parseFloat(document.getElementById('rateSlider').value);
@@ -710,6 +716,57 @@ let wbPaused = false;
 
 function escapeHtml(str){
   return String(str==null ? '' : str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ---------- text cleanup for speech vs. on-screen display ---------- */
+function cleanForSpeech(text){
+  return String(text == null ? '' : text)
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`([^`]*)`/g, '$1')
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/_([^_]+)_/g, '$1')
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/^\s*\d+[.)]\s+/gm, '')
+    .replace(/[*_#`]/g, '')
+    .replace(/\n{2,}/g, '. ')
+    .replace(/\n/g, ' ')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\s+\./g, '.')
+    .trim();
+}
+
+function renderMarkdownLite(text){
+  const escaped = escapeHtml(text == null ? '' : text)
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/__([^_]+)__/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    .replace(/(^|\s)_([^_\s][^_]*)_(?=$|\s)/g, '$1<em>$2</em>');
+  const lines = escaped.split(/\n/);
+  const out = [];
+  let inList = false;
+  lines.forEach(line=>{
+    const headerMatch = line.match(/^\s{0,3}#{1,6}\s+(.*)$/);
+    if(headerMatch){
+      if(inList){ out.push('</ul>'); inList = false; }
+      if(headerMatch[1].trim()) out.push(`<p><strong>${headerMatch[1]}</strong></p>`);
+      return;
+    }
+    const bulletMatch = line.match(/^\s*[-*+]\s+(.*)$/);
+    const numberMatch = line.match(/^\s*\d+[.)]\s+(.*)$/);
+    const m = bulletMatch || numberMatch;
+    if(m){
+      if(!inList){ out.push('<ul>'); inList = true; }
+      out.push(`<li>${m[1]}</li>`);
+      return;
+    }
+    if(inList){ out.push('</ul>'); inList = false; }
+    if(line.trim()) out.push(`<p>${line}</p>`);
+  });
+  if(inList) out.push('</ul>');
+  return out.join('');
 }
 
 function renderCardHTML(card){
@@ -796,7 +853,7 @@ function getWbSelectedVoice(){
 function wbSpeakFrom(idx){
   if(idx >= beats.length){ wbStopReading(); return; }
   renderBeat(idx);
-  const u = new SpeechSynthesisUtterance(beats[idx].text);
+  const u = new SpeechSynthesisUtterance(cleanForSpeech(beats[idx].text));
   const v = getWbSelectedVoice();
   if(v) u.voice = v;
   u.rate = parseFloat(document.getElementById('wbRateSlider').value);
