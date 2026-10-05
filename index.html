@@ -90,6 +90,14 @@
     .drag-handle { position: absolute; bottom: 6px; left: 8px; color: #c9c8c3; font-size: 16px; cursor: grab; padding: 4px; border-radius: 4px; line-height: 1; }
     .drag-hint { font-size: 11px; color: var(--text-3); text-align: center; margin-bottom: 10px; }
 
+    /* Category inline expansion */
+    .cat-expansion { grid-column: 1 / -1; overflow: hidden; max-height: 0; opacity: 0; transition: max-height 0.28s ease, opacity 0.2s ease; }
+    .cat-expansion-inner { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); margin-top: 4px; padding: 12px 14px; }
+    .cat-expansion-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    .cat-expansion-title { font-size: 14px; font-weight: 700; color: var(--text); }
+    .cat-expansion-close { background: none; border: none; color: var(--text-3); font-size: 20px; line-height: 1; cursor: pointer; padding: 2px 8px; border-radius: 6px; }
+    .cat-expansion-close:hover { background: var(--surface-2); }
+
     /* Add panel */
     .add-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 14px 16px; margin-bottom: 14px; display: none; }
     .add-panel-title { font-size: 13px; font-weight: 600; margin-bottom: 10px; color: var(--text-2); }
@@ -939,12 +947,29 @@ function donutSVG(pct,color){
   </svg>`;
 }
 
+function renderCatExpansionHTML(c){
+  const catTxs=transactions.filter(t=>t.cat===c.key&&!t.excluded);
+  catTxs.sort((a,b)=>b.date.localeCompare(a.date));
+  const rowsHtml=catTxs.length
+    ? catTxs.map(t=>renderTxRowHTML(t,false)).join('')
+    : '<div class="empty-state">No transactions in this category</div>';
+  return `<div class="cat-expansion" id="catExpansion-${c.key}">
+    <div class="cat-expansion-inner">
+      <div class="cat-expansion-header">
+        <div class="cat-expansion-title">${escHtml(c.label)}</div>
+        <button class="cat-expansion-close" onclick="closeCatExpansion(event)">&times;</button>
+      </div>
+      <div class="cat-expansion-list">${rowsHtml}</div>
+    </div>
+  </div>`;
+}
+
 function renderRings(){
   const grid=document.getElementById('ringsGrid');
   grid.innerHTML=categories.map((c,i)=>{
     const bgt=c.budget_amount||0,spent=catSpend(c.key,transactions);
     const pct=bgt>0?spent/bgt:0,color=ringColor(pct,c.invest),sel=selectedCat===c.key;
-    return `<div class="ring-card${sel?' selected':''}" onclick="cardClick(event,'${c.key}',false)"
+    const cardHtml=`<div class="ring-card${sel?' selected':''}" onclick="cardClick(event,'${c.key}',false)"
       draggable="true" ondragover="dragOver(event,${i},false)" ondrop="dragDrop(event,${i},false)" ondragend="dragEnd(event)" id="ring-${c.key}" style="padding-bottom:28px;">
       <div class="ring-label">${escHtml(c.label)}</div>
       ${donutSVG(pct,color)}
@@ -952,7 +977,18 @@ function renderRings(){
       <div class="ring-budget">${bgt?'of '+fmtMoney(bgt):'set budget'}</div>
       <div class="drag-handle" ontouchstart="handleTouchStart(event,${i},false)" onmousedown="handleMouseDown(event,${i},false)" onclick="stopProp(event)">&#8942;&#8942;</div>
     </div>`;
+    return sel ? cardHtml+renderCatExpansionHTML(c) : cardHtml;
   }).join('');
+  if(selectedCat){
+    const exp=document.getElementById('catExpansion-'+selectedCat);
+    if(exp){
+      const inner=exp.querySelector('.cat-expansion-inner');
+      requestAnimationFrame(()=>{
+        exp.style.maxHeight=inner.scrollHeight+'px';
+        exp.style.opacity='1';
+      });
+    }
+  }
 }
 
 function renderBizRings(){
@@ -1067,30 +1103,40 @@ function onTouchEnd(e,isBiz){
   touchDragIdx=null;
 }
 
-// ── Add transactions ──
+// ── Category inline expansion ──
+let catExpansionCloseTimer=null;
+
 function selectCat(key){
-  if(selectedCat===key){closePanel();return;}
-  selectedCat=key;renderRings();
-  const cat=categories.find(c=>c.key===key);
-  document.getElementById('addPanelTitle').textContent=cat?cat.label:key;
-  const catTxs=transactions.filter(t=>t.cat===key&&!t.excluded);
-  catTxs.sort((a,b)=>b.date.localeCompare(a.date));
-  const listEl=document.getElementById('catTxList');
-  if(!catTxs.length){
-    listEl.innerHTML='<div style="color:var(--text-3);font-size:13px;text-align:center;padding:12px;">No transactions in this category</div>';
-  } else {
-    listEl.innerHTML=catTxs.map(t=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);"><div><div style="font-size:13px;font-weight:500;">${escHtml(t.desc)}</div><div style="font-size:11px;color:var(--text-3);">${fmtDate(t.date)}${t.account?' | '+escHtml(t.account):''}</div></div><div style="font-size:13px;font-weight:600;color:${t.income?'var(--green)':'var(--red)'};">${t.income?'+':'-'}${fmtMoney(t.amount)}</div></div>`).join('');
-  }
-  document.getElementById('addPanel').style.display='block';
+  if(selectedCat===key){closeCatExpansionAnimated();return;}
+  clearTimeout(catExpansionCloseTimer);
+  selectedCat=key;
+  renderRings();
+}
+
+function closeCatExpansionAnimated(){
+  const key=selectedCat;
+  const el=key?document.getElementById('catExpansion-'+key):null;
+  clearTimeout(catExpansionCloseTimer);
+  if(!el){selectedCat=null;renderRings();return;}
+  const inner=el.querySelector('.cat-expansion-inner');
+  el.style.maxHeight=inner.scrollHeight+'px';
+  el.style.opacity='1';
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      el.style.maxHeight='0px';
+      el.style.opacity='0';
+    });
+  });
+  catExpansionCloseTimer=setTimeout(()=>{selectedCat=null;renderRings();},280);
+}
+
+function closeCatExpansion(e){
+  if(e)e.stopPropagation();
+  closeCatExpansionAnimated();
 }
 
 function closePanel(){
-  selectedCat=null;
-  document.getElementById('addPanel').style.display='none';
-  document.getElementById('tx-desc').value='';
-  document.getElementById('tx-amt').value='';
-  document.getElementById('tx-income').checked=false;
-  renderRings();
+  closeCatExpansionAnimated();
 }
 
 async function addTx(){
@@ -1197,6 +1243,28 @@ async function updateTxCat(id,newCat,isBiz){
 }
 
 // ── Transaction lists ──
+function renderTxRowHTML(t,isBiz){
+  const cats=isBiz?bizCategories:categories;
+  const isPending=t.pending_review&&!t.excluded;
+  const isExcluded=!!t.excluded;
+  const incomeOpt=`<option value="income" ${(!isPending&&t.cat==='income')?'selected':''}>Income / Refund</option>`;const catOptions=incomeOpt+cats.map(c=>`<option value="${c.key}" ${(!isPending&&c.key===t.cat)?'selected':''}>${escHtml(c.label)}</option>`).join('');
+  const catSel=isPending?`<select class="tx-cat" onchange="approveTxWithCat('${t.id}',this.value)"><option value="" disabled selected>Pick one</option><option value="income">Income / Refund</option>${cats.map(c=>`<option value="${c.key}">${escHtml(c.label)}</option>`).join('')}</select>`:isExcluded?`<span style="font-size:12px;color:var(--text-3);">- - - -</span>`:`<select class="tx-cat" onchange="updateTxCat('${t.id}',this.value,${isBiz?'true':'false'})">${catOptions}</select>`;
+  const rowStyle=isPending?'background:#fef7e6;border-radius:8px;margin-bottom:4px;padding:8px;':isExcluded?'opacity:0.45;padding:8px 0;':'padding:8px 0;';
+  const acct=t.account?` | ${escHtml(t.account)}`:'';
+  return `<div class="tx-row" style="${rowStyle}position:relative;">
+    ${!isExcluded?`<button onclick="deleteTx('${t.id}',${isBiz?'true':'false'})" style="position:absolute;top:4px;right:0;background:none;border:none;color:var(--text-3);cursor:pointer;font-size:16px;padding:2px 6px;line-height:1;">&#215;</button>`:''}
+    <div class="tx-left" style="${isExcluded?'text-decoration:line-through;':''}">
+      <div class="tx-desc" style="padding-right:24px;">${escHtml(t.desc)}</div>
+      <div class="tx-date">${fmtDate(t.date)}${acct}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px;">
+        ${catSel}
+        <div style="font-size:13px;font-weight:600;color:${isExcluded?'var(--text-3)':t.income?'var(--green)':'var(--red)'};white-space:nowrap;">${t.income?'+':'-'}${fmtMoney(t.amount)}</div>
+      </div>
+      ${isExcluded?`<button onclick="restoreTx('${t.id}')" style="font-family:inherit;font-size:10px;padding:2px 8px;border-radius:6px;border:1px solid var(--border-strong);background:none;color:var(--text-2);cursor:pointer;margin-top:4px;">Restore</button>`:''}
+    </div>
+  </div>`;
+}
+
 function renderTxList(){
   const pending=transactions.filter(t=>t.pending_review&&!t.excluded);
   const reviewed=transactions.filter(t=>!t.pending_review&&!t.excluded);
@@ -1207,26 +1275,7 @@ function renderTxList(){
   if(!txs.length){el.innerHTML='<div class="empty-state">No transactions this month yet</div>';return;}
   const reviewBtn=document.getElementById('reviewBtn');
   if(reviewBtn){reviewBtn.style.display=pending.length>0?'block':'none';reviewBtn.textContent='Review '+pending.length;}
-  el.innerHTML=txs.map(t=>{
-    const isPending=t.pending_review&&!t.excluded;
-    const isExcluded=!!t.excluded;
-    const incomeOpt=`<option value="income" ${(!isPending&&t.cat==='income')?'selected':''}>Income / Refund</option>`;const catOptions=incomeOpt+categories.map(c=>`<option value="${c.key}" ${(!isPending&&c.key===t.cat)?'selected':''}>${escHtml(c.label)}</option>`).join('');
-    const catSel=isPending?`<select class="tx-cat" onchange="approveTxWithCat('${t.id}',this.value)"><option value="" disabled selected>Pick one</option><option value="income">Income / Refund</option>${categories.map(c=>`<option value="${c.key}">${escHtml(c.label)}</option>`).join('')}</select>`:isExcluded?`<span style="font-size:12px;color:var(--text-3);">- - - -</span>`:`<select class="tx-cat" onchange="updateTxCat('${t.id}',this.value,false)">${catOptions}</select>`;
-    const rowStyle=isPending?'background:#fef7e6;border-radius:8px;margin-bottom:4px;padding:8px;':isExcluded?'opacity:0.45;padding:8px 0;':'padding:8px 0;';
-    const acct=t.account?` | ${escHtml(t.account)}`:'';
-    return `<div class="tx-row" style="${rowStyle}position:relative;">
-      ${!isExcluded?`<button onclick="deleteTx('${t.id}',false)" style="position:absolute;top:4px;right:0;background:none;border:none;color:var(--text-3);cursor:pointer;font-size:16px;padding:2px 6px;line-height:1;">&#215;</button>`:''}
-      <div class="tx-left" style="${isExcluded?'text-decoration:line-through;':''}">
-        <div class="tx-desc" style="padding-right:24px;">${escHtml(t.desc)}</div>
-        <div class="tx-date">${fmtDate(t.date)}${acct}</div>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px;">
-          ${catSel}
-          <div style="font-size:13px;font-weight:600;color:${isExcluded?'var(--text-3)':t.income?'var(--green)':'var(--red)'};white-space:nowrap;">${t.income?'+':'-'}${fmtMoney(t.amount)}</div>
-        </div>
-        ${isExcluded?`<button onclick="restoreTx('${t.id}')" style="font-family:inherit;font-size:10px;padding:2px 8px;border-radius:6px;border:1px solid var(--border-strong);background:none;color:var(--text-2);cursor:pointer;margin-top:4px;">Restore</button>`:''}
-      </div>
-    </div>`;
-  }).join('');
+  el.innerHTML=txs.map(t=>renderTxRowHTML(t,false)).join('');
 }
 
 
