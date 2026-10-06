@@ -421,6 +421,43 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+/* ---------- Media Session ----------
+   Registers playback as real media so the OS/browser keeps the tab alive in the background
+   and shows lock-screen/notification controls. Known limitation: Chrome/Edge can still
+   throttle or interrupt speechSynthesis in background tabs even with this set; the page
+   can't fully control that, so onerror/watchdog recovery stays in place as the fallback. */
+let mediaFlow = null;
+function mediaTitle(){
+  const words = (currentLesson || '').trim().split(/\s+/).filter(Boolean).slice(0,5).join(' ');
+  return words || 'Study Session';
+}
+function mediaSet(flow, state){
+  if(!('mediaSession' in navigator)) return;
+  if(state === 'stopped'){
+    if(mediaFlow !== flow) return;
+    mediaFlow = null;
+    navigator.mediaSession.metadata = null;
+    navigator.mediaSession.playbackState = 'none';
+    ['play','pause'].forEach(a => { try{ navigator.mediaSession.setActionHandler(a, null); }catch(_){} });
+    return;
+  }
+  if(mediaFlow !== flow){
+    mediaFlow = flow;
+    try{ navigator.mediaSession.metadata = new MediaMetadata({ title: mediaTitle(), artist: 'Study Reader' }); }catch(_){}
+    const h = {
+      reader: { play: () => startReading(), pause: () => pauseReading() },
+      wb: { play: () => wbStartReading(), pause: () => wbPauseReading() },
+      ai: { play: () => { if(!aiSpeaking) document.getElementById('readAiBtn').click(); },
+            pause: () => { if(aiSpeaking) document.getElementById('readAiBtn').click(); } }
+    }[flow];
+    try{
+      navigator.mediaSession.setActionHandler('play', h.play);
+      navigator.mediaSession.setActionHandler('pause', h.pause);
+    }catch(_){}
+  }
+  navigator.mediaSession.playbackState = state === 'playing' ? 'playing' : 'paused';
+}
+
 let sentences = [];       // {text, el}
 let currentIdx = -1;
 let isPaused = false;
@@ -760,6 +797,7 @@ function pauseReading(){
   setPlayUI('paused');
 }
 function setPlayUI(state){
+  mediaSet('reader', state);
   const play=document.getElementById('playBtn'), pause=document.getElementById('pauseBtn'), resume=document.getElementById('resumeBtn');
   play.style.display = state==='stopped' ? 'inline-block' : 'none';
   pause.style.display = state==='playing' ? 'inline-block' : 'none';
@@ -831,6 +869,7 @@ document.getElementById('askInput').addEventListener('keydown', (e)=>{
   if(e.key==='Enter') document.getElementById('askBtn').click();
 });
 function setAiListenUI(state){
+  mediaSet('ai', state);
   const btn = document.getElementById('readAiBtn');
   if(!btn) return;
   btn.textContent = state === 'playing' ? '⏸ Pause' : (state === 'paused' ? '▶ Resume listening' : '🔊 Listen');
@@ -1021,17 +1060,6 @@ function wbSpeakFrom(idx){
 }
 let wbUtt = null;
 
-/* Backgrounded tab: the engine dies silently, so pause cleanly and keep position. */
-document.addEventListener('visibilitychange', () => {
-  if(!document.hidden) return;
-  if(speaking) pauseReading();
-  if(wbSpeaking) wbPauseReading();
-  if(aiSpeaking){
-    window.speechSynthesis.cancel();
-    aiSpeaking = false; aiUtterance = null; // restarts from the top on resume
-    setAiListenUI('paused');
-  }
-});
 function wbStartReading(){
   if(!beats.length) return;
   stopAllSpeech();
@@ -1050,6 +1078,7 @@ function wbPauseReading(){
   setWbPlayUI('paused');
 }
 function setWbPlayUI(state){
+  mediaSet('wb', state);
   const play=document.getElementById('wbPlayBtn'), pause=document.getElementById('wbPauseBtn'), resume=document.getElementById('wbResumeBtn');
   play.style.display = state==='stopped' ? 'inline-block' : 'none';
   pause.style.display = state==='playing' ? 'inline-block' : 'none';
