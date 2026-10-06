@@ -633,13 +633,13 @@ function resetToNewLesson(){
 }
 
 function splitSentences(text){
-  // split into sentence-ish chunks; keeps things reasonable for TTS + highlighting
-  return text
-    .replace(/\s+/g,' ')
-    .trim()
-    .match(/[^.!?]+[.!?]+(\s|$)|[^.!?]+$/g)
-    ?.map(s => s.trim())
-    .filter(Boolean) || [text];
+  // Splits ONE source line into sentence-ish chunks for TTS + highlighting. Lossless:
+  // a chunk ends at . ! ? (plus closing quotes/brackets) followed by whitespace or end;
+  // anything else (no punctuation, "3.5", "(00:55)") stays in the chunk it belongs to.
+  const t = String(text).replace(/\s+/g,' ').trim();
+  if(!t) return [];
+  const chunks = t.match(/\S.*?(?:[.!?]+["')\]]*(?=\s|$)|$)/g);
+  return chunks ? chunks.map(c => c.trim()).filter(Boolean) : [t];
 }
 
 /* ---------- lesson structure parsing (paragraphs / headings / lists) ---------- */
@@ -667,16 +667,17 @@ function parseBlockLines(rawBlock){
   const elements = [];
   let paraBuffer = [];
   let listBuffer = null;
+  const rawFor = items => items.join('\n');
 
   function flushPara(){
     if(paraBuffer.length){
-      elements.push({type:'para', text: paraBuffer.join(' ')});
+      elements.push({type:'para', lines: paraBuffer, raw: rawFor(paraBuffer)});
       paraBuffer = [];
     }
   }
   function flushList(){
     if(listBuffer){
-      elements.push({type:'list', ordered: listBuffer.ordered, items: listBuffer.items});
+      elements.push({type:'list', ordered: listBuffer.ordered, items: listBuffer.items, raw: rawFor(listBuffer.rawLines)});
       listBuffer = null;
     }
   }
@@ -685,8 +686,9 @@ function parseBlockLines(rawBlock){
     if(isBulletLine(line)){
       flushPara();
       const ordered = isOrderedBulletLine(line);
-      if(!listBuffer || listBuffer.ordered !== ordered){ flushList(); listBuffer = {ordered, items:[]}; }
+      if(!listBuffer || listBuffer.ordered !== ordered){ flushList(); listBuffer = {ordered, items:[], rawLines:[]}; }
       listBuffer.items.push(stripBulletMarker(line));
+      listBuffer.rawLines.push(line);
       return;
     }
     flushList();
@@ -694,7 +696,7 @@ function parseBlockLines(rawBlock){
     // heading — otherwise a hard-wrapped paragraph (no blank lines, just short
     // physical lines) would get every line misread as its own heading.
     if(i === 0 && isHeadingLine(line)){
-      elements.push({type:'heading', text: line});
+      elements.push({type:'heading', text: line, raw: line});
       return;
     }
     paraBuffer.push(line);
@@ -709,7 +711,7 @@ function parseLessonBlocks(text){
   const rawBlocks = normalized.split(/\n[ \t]*\n+/).map(b => b.trim()).filter(Boolean);
   const elements = [];
   rawBlocks.forEach(raw => { elements.push(...parseBlockLines(raw)); });
-  return elements.length ? elements : [{type:'para', text: normalized.trim()}];
+  return elements.length ? elements : [{type:'para', lines: normalized.split('\n').map(l => l.trim()).filter(Boolean), raw: normalized.trim()}];
 }
 
 function appendSentenceSpans(container, text){
@@ -724,34 +726,75 @@ function appendSentenceSpans(container, text){
   });
 }
 
+function renderBlock(view, block){
+  if(block.type === 'heading'){
+    const h = document.createElement('h3');
+    h.className = 'lesson-heading';
+    appendSentenceSpans(h, block.text);
+    view.appendChild(h);
+    return;
+  }
+  if(block.type === 'list'){
+    const listEl = document.createElement(block.ordered ? 'ol' : 'ul');
+    listEl.className = 'lesson-list';
+    block.items.forEach(itemText=>{
+      const li = document.createElement('li');
+      appendSentenceSpans(li, itemText);
+      listEl.appendChild(li);
+    });
+    view.appendChild(listEl);
+    return;
+  }
+  // Each pasted line is its own unit; lines are never merged into one chunk.
+  const p = document.createElement('p');
+  p.className = 'lesson-para';
+  block.lines.forEach((line, i)=>{
+    if(i) p.appendChild(document.createElement('br'));
+    appendSentenceSpans(p, line);
+  });
+  view.appendChild(p);
+}
+
 function renderLessonView(text){
   const view = document.getElementById('lessonView');
   view.innerHTML = '';
   sentences = [];
   parseLessonBlocks(text).forEach(block=>{
-    if(block.type === 'heading'){
-      const h = document.createElement('h3');
-      h.className = 'lesson-heading';
-      appendSentenceSpans(h, block.text);
-      view.appendChild(h);
-      return;
+    const childCount = view.childNodes.length, sentCount = sentences.length;
+    try{
+      renderBlock(view, block);
+    }catch(err){
+      console.error('Lesson block failed to render; using raw fallback:', err, block);
+      while(view.childNodes.length > childCount) view.removeChild(view.lastChild);
+      sentences.length = sentCount;
+      const p = document.createElement('p');
+      p.className = 'lesson-para';
+      const raw = String(block.raw || '').replace(/\s+/g,' ').trim();
+      const span = document.createElement('span');
+      span.className = 'sent';
+      span.textContent = raw + ' ';
+      const idx = sentences.length;
+      span.addEventListener('click', () => { currentIdx = idx; startReading(); });
+      p.appendChild(span);
+      view.appendChild(p);
+      sentences.push({text: raw, el: span});
     }
-    if(block.type === 'list'){
-      const listEl = document.createElement(block.ordered ? 'ol' : 'ul');
-      listEl.className = 'lesson-list';
-      block.items.forEach(itemText=>{
-        const li = document.createElement('li');
-        appendSentenceSpans(li, itemText);
-        listEl.appendChild(li);
-      });
-      view.appendChild(listEl);
-      return;
-    }
-    const p = document.createElement('p');
-    p.className = 'lesson-para';
-    appendSentenceSpans(p, block.text);
-    view.appendChild(p);
   });
+  checkLessonIntegrity(text);
+}
+
+// Console-only safety net: warns if rendered text doesn't account for the pasted text.
+function checkLessonIntegrity(original){
+  const norm = s => s.replace(/\s+/g,'');
+  const expected = norm(String(original || '').replace(/\r\n?/g,'\n').split('\n')
+    .map(l => isBulletLine(l) ? stripBulletMarker(l) : l).join('\n'));
+  const rendered = norm(sentences.map(s => s.text).join(''));
+  if(expected === rendered) return;
+  let i = 0;
+  while(i < expected.length && expected[i] === rendered[i]) i++;
+  console.warn('Lesson integrity check failed: rendered text differs from pasted text.',
+    {expectedLength: expected.length, renderedLength: rendered.length, firstDiffAt: i,
+     expectedNear: expected.slice(Math.max(0,i-20), i+40), renderedNear: rendered.slice(Math.max(0,i-20), i+40)});
 }
 
 /* ---------- reading controls ---------- */
