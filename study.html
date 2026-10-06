@@ -73,7 +73,8 @@ textarea:focus{outline:none;border-color:var(--accent)}
 .lesson-view{
   font-size:15px;line-height:1.8;
 }
-.lesson-view .sent{transition:background .15s}
+.lesson-view .sent{transition:background .15s;cursor:pointer}
+.lesson-view .sent:hover{background:var(--accent-soft);border-radius:3px;opacity:.85}
 .lesson-view .sent.current{background:var(--accent-soft);border-radius:3px}
 .lesson-view p.lesson-para{margin:0 0 16px}
 .lesson-view p.lesson-para:last-child{margin-bottom:0}
@@ -648,6 +649,8 @@ function appendSentenceSpans(container, text){
     span.className = 'sent';
     span.textContent = s + ' ';
     container.appendChild(span);
+    const idx = sentences.length;
+    span.addEventListener('click', () => { currentIdx = idx; startReading(); });
     sentences.push({text: s, el: span});
   });
 }
