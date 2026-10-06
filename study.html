@@ -494,6 +494,7 @@ function populateVoices(){
   });
 }
 if('speechSynthesis' in window){
+  window.speechSynthesis.cancel(); // clear any stuck queue from a previous bad state
   window.speechSynthesis.onvoiceschanged = populateVoices;
 } else {
   toast('Your browser doesn\'t support read-aloud. Try Chrome, Edge, or Safari.');
@@ -686,6 +687,40 @@ function getSelectedVoice(){
   const name = document.getElementById('voiceSelect').value;
   return voices.find(v => v.name === name) || voices[0];
 }
+/* Wires onend/onerror plus a watchdog onto an utterance. Whichever fires first wins.
+   isCurrent(): u is still the utterance its flow cares about (false => stale, ignore).
+   isHeld(): optional; flow is deliberately paused, so the watchdog just re-checks later. */
+function guardUtterance(u, label, isCurrent, onEnd, onFail, isHeld){
+  let done = false, timer = null;
+  const finish = () => { done = true; clearTimeout(timer); };
+  const fail = (why) => {
+    console.error('Speech '+label+' failed:', why);
+    try{ window.speechSynthesis.cancel(); }catch(_){}
+    onFail();
+  };
+  u.onend = () => { if(done) return; finish(); onEnd(); };
+  u.onerror = (e) => {
+    if(done) return; finish();
+    if(!isCurrent()) return; // we cancelled it ourselves (pause/jump/stop)
+    fail(e && e.error);
+  };
+  const words = (u.text || '').trim().split(/\s+/).length;
+  const expectedMs = words / (150 * (u.rate || 1)) * 60000;
+  const limit = Math.max(20000, expectedMs * 3);
+  const check = () => {
+    if(done) return;
+    if(!isCurrent()){ finish(); return; }
+    if(isHeld && isHeld()){ timer = setTimeout(check, 5000); return; }
+    finish();
+    fail('watchdog timeout');
+  };
+  timer = setTimeout(check, limit);
+}
+let readerUtt = null;
+function readerFailed(){
+  speaking = false; isPaused = false; readerUtt = null;
+  setPlayUI('stopped');
+}
 function speakFrom(idx){
   if(idx >= sentences.length){ stopReading(); return; }
   currentIdx = idx;
@@ -694,7 +729,10 @@ function speakFrom(idx){
   const v = getSelectedVoice();
   if(v) u.voice = v;
   u.rate = parseFloat(document.getElementById('rateSlider').value);
-  u.onend = () => { if(!isPaused && speaking) speakFrom(idx+1); };
+  readerUtt = u;
+  guardUtterance(u, 'reader', () => readerUtt === u && speaking,
+    () => { if(!isPaused && speaking) speakFrom(idx+1); },
+    readerFailed);
   window.speechSynthesis.speak(u);
 }
 function highlightCurrent(){
@@ -813,7 +851,11 @@ document.getElementById('readAiBtn').addEventListener('click', ()=>{
   const v = getSelectedVoice();
   if(v) aiUtterance.voice = v;
   aiUtterance.rate = parseFloat(document.getElementById('rateSlider').value);
-  aiUtterance.onend = () => { aiSpeaking = false; setAiListenUI('stopped'); };
+  const au = aiUtterance;
+  guardUtterance(au, 'AI listen', () => aiUtterance === au,
+    () => { aiSpeaking = false; setAiListenUI('stopped'); },
+    () => { aiSpeaking = false; aiUtterance = null; setAiListenUI('stopped'); },
+    () => !aiSpeaking);
   aiSpeaking = true;
   setAiListenUI('playing');
   window.speechSynthesis.speak(aiUtterance);
@@ -968,9 +1010,25 @@ function wbSpeakFrom(idx){
   const v = getWbSelectedVoice();
   if(v) u.voice = v;
   u.rate = parseFloat(document.getElementById('wbRateSlider').value);
-  u.onend = () => { if(!wbPaused && wbSpeaking) wbSpeakFrom(idx+1); };
+  wbUtt = u;
+  guardUtterance(u, 'whiteboard', () => wbUtt === u && wbSpeaking,
+    () => { if(!wbPaused && wbSpeaking) wbSpeakFrom(idx+1); },
+    () => { wbSpeaking = false; wbPaused = false; wbUtt = null; setWbPlayUI('stopped'); });
   window.speechSynthesis.speak(u);
 }
+let wbUtt = null;
+
+/* Backgrounded tab: the engine dies silently, so pause cleanly and keep position. */
+document.addEventListener('visibilitychange', () => {
+  if(!document.hidden) return;
+  if(speaking) pauseReading();
+  if(wbSpeaking) wbPauseReading();
+  if(aiSpeaking){
+    window.speechSynthesis.cancel();
+    aiSpeaking = false; aiUtterance = null; // restarts from the top on resume
+    setAiListenUI('paused');
+  }
+});
 function wbStartReading(){
   if(!beats.length) return;
   stopAllSpeech();
